@@ -1,5 +1,5 @@
 import json,collections,sys
-t=json.load(open('kit/dev/truth/truth.json'))
+t=json.load(open(sys.argv[2] if len(sys.argv)>2 else 'kit/dev/truth/truth.json'))
 out=sys.argv[1] if len(sys.argv)>1 else 'out'
 rep=json.load(open(out+'/report.json'))
 sha2out={f['input_sha256']:f['output'] for f in rep['files']}

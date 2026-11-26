@@ -4,7 +4,7 @@ from pathlib import Path
 sys.path.insert(0, '.')
 from wards.pipeline import Pipeline
 from wards.link import Linker
-pl = Pipeline(Path('kit/dev/input'), Path('/tmp/none'))
+pl = Pipeline(Path(sys.argv[4] if len(sys.argv)>4 else 'kit/dev/input'), Path('/tmp/none'))
 pl.ingest(); pl.resolve_date_orders(); pl.build_units(); pl.harvest()
 lk = Linker(pl.evidence); assign = lk.run()
 by = {(u.file, u.loc): u for u in pl.units}

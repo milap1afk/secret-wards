@@ -120,7 +120,15 @@ class _Cluster:
         self.anchored = self.anchored or o.anchored
 
 
-def _conflict(a: _Cluster, b: _Cluster, *, strict_names: bool) -> bool:
+def shared_signals(x: "Evidence", y: "Evidence") -> int:
+    n = 0
+    for attr in ("uhids", "encs", "aadhaar", "abha", "pan", "ins", "email", "phones", "dob"):
+        if getattr(x, attr) & getattr(y, attr):
+            n += 1
+    return n
+
+
+def _conflict(a: _Cluster, b: _Cluster, *, strict_names: bool, names_ok: bool = False) -> bool:
     if a.aadhaar and b.aadhaar and not (a.aadhaar & b.aadhaar):
         return True
     if a.dob and b.dob and not (a.dob & b.dob):
@@ -129,7 +137,7 @@ def _conflict(a: _Cluster, b: _Cluster, *, strict_names: bool) -> bool:
         return True
     if strict_names and a.ages and b.ages and min(abs(x - y) for x in a.ages for y in b.ages) > 3:
         return True
-    if a.name_keys and b.name_keys and not (a.name_keys & b.name_keys):
+    if not names_ok and a.name_keys and b.name_keys and not (a.name_keys & b.name_keys):
         return True
     if strict_names and a.given_keys and b.given_keys and not (a.given_keys & b.given_keys):
         return True
@@ -141,6 +149,7 @@ class Linker:
         self.ev = sorted(evidence, key=lambda e: (e.file, e.loc))
         self.parent = {e.rid: e.rid for e in self.ev}
         self.cl = {e.rid: _Cluster(e) for e in self.ev}
+        self.byrid = {e.rid: e for e in self.ev}
 
     def find(self, x):
         while self.parent[x] != x:
@@ -148,12 +157,12 @@ class Linker:
             x = self.parent[x]
         return x
 
-    def union(self, a, b, *, strict_names: bool) -> bool:
+    def union(self, a, b, *, strict_names: bool, names_ok: bool = False) -> bool:
         ra, rb = self.find(a), self.find(b)
         if ra == rb:
             return True
         ca, cb = self.cl[ra], self.cl[rb]
-        if _conflict(ca, cb, strict_names=strict_names):
+        if _conflict(ca, cb, strict_names=strict_names, names_ok=names_ok):
             return False
         if ra > rb:
             ra, rb, ca, cb = rb, ra, cb, ca
@@ -172,7 +181,9 @@ class Linker:
         for key in sorted(index):
             rids = index[key]
             for r in rids[1:]:
-                self.union(rids[0], r, strict_names=False)
+                # two independent strong signals outweigh a name mismatch (e.g. a transliteration miss)
+                ok = shared_signals(self.byrid[rids[0]], self.byrid[r]) >= 2
+                self.union(rids[0], r, strict_names=False, names_ok=ok)
         # ---- phase 1b: phones (need a compatible given name)
         pidx: dict = {}
         for e in usable:

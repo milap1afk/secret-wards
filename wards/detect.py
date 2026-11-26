@@ -140,7 +140,7 @@ ID_LABELS = re.compile(
     r"health\s*id|abha\s*(?:no|number|id)?|aadhaa?r\s*(?:no|number)?|uid)\b\.?\s*[:#\-–=]?\s*"
 )
 NAME_LABELS = re.compile(
-    r"(?i)(?<![a-z])(patient'?s?\s*name|name\s*of\s*(?:the\s*)?patient|pt\.?\s*name|patient|naam|name|full\s*name|"
+    r"(?i)(?<![a-z])(patient'?s?\s*name|name\s*of\s*(?:the\s*)?patient|pt\.?\s*name|pt|patient|naam|name|full\s*name|"
     r"attendant(?:'s)?\s*(?:name)?|relative(?:'s)?\s*(?:name)?|guardian(?:'s)?\s*(?:name)?|informant|caller|"
     r"next\s*of\s*kin|nok|father(?:'s)?\s*name|husband(?:'s)?\s*name|mother(?:'s)?\s*name|spouse|"
     r"contact\s*person|witness|raised\s*by|reported\s*by\s*(?!dr)|brought\s*by|escort)\s*[:\-–=]\s*"
@@ -468,6 +468,12 @@ class Detector:
                 if w == "report of":
                     role = "patient"
                 spans.append(Span(s, e, "NAME", role=role, value=" ".join(toks), meta={"src": "verb"}))
+        # Hinglish possessive at clause start: "Hasina ka BP", "Ramesh ki tabiyat"
+        for m in re.finditer(r"(?:^|(?<=[.\n:;\-–]\s)|(?<=^\s))((?:[A-Z][a-z]+\.?\s+){0,2}[A-Z][a-z]+)\s+(?:ka|ki|ke|ko|ne|se)\s", t, flags=re.M):
+            words = m.group(1).split()
+            if all(is_name_token(w.rstrip(".")) or w.lower().rstrip(".") in ("md", "mohd") for w in words):
+                if not re.search(r"(?i)\b(?:dr|doctor)\.?\s*$", t[max(0, m.start(1) - 5):m.start(1)]):
+                    spans.append(Span(m.start(1), m.end(1), "NAME", value=m.group(1), meta={"src": "possessive"}))
         # "<Name> (attendant, bed 12)"
         for m in re.finditer(r"\(\s*(?:attendant|relative|husband|wife|son|daughter|father|mother|guardian|visitor|caller)", t, flags=re.I):
             left = t[:m.start()].rstrip()

@@ -702,7 +702,7 @@ class Pipeline:
                 tok = m.group(0).rstrip(".")
                 if len(tok) < 3 or tok.lower() in gz.NON_NAME_WORDS or tok.lower() in gz.HONORIFIC_SUFFIX:
                     continue
-                if tok.lower() in gz.GENERIC_NAME_TOKENS or fold(tok) in self.doctor_tokens:
+                if tok.lower() in gz.GENERIC_NAME_TOKENS:
                     continue
                 if not (tok[0].isupper() or re.match(r"[ऀ-ॿ]", tok)):
                     continue
@@ -984,7 +984,6 @@ class Pipeline:
     def _sweep_keys(self, u: Unit, found) -> set:
         keys = self._unit_tokens(u, found)
         # never sweep doctors' names or kept places
-        keys = {k for k in keys if k[2:] not in self.doctor_tokens}
         return keys
 
     # ---------- writers
