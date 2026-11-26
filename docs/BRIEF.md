@@ -46,9 +46,9 @@ evidence + PII lexicon) → **link** (union-find: strong IDs, then name + unique
 |---|---|---|
 | PII leaked (overall / Hindi / Hinglish) | 0 % / 0 % / 0 % | 0 % / 0 % / 0 % |
 | medical values kept | 99.97 % | 99.97 % |
-| linking precision / recall / F0.5 | 1.00 / 1.00 / 1.00 | 1.00 / 0.89 / 0.975 |
+| linking precision / recall / F0.5 | 1.00 / 1.00 / 1.00 | 1.00 / 1.00 / 1.00 |
 | attack risk vs raw: record / profile / targeted | 0.09 / 0.40 / 0.61 | – |
-| run time / peak memory | 2.4 s / 31 MB (10× data: linear) | 2.4 s / 31 MB |
+| run time / peak memory | 2.4 s / 31 MB (20× data: 28 s / 330 MB) | 2.4 s / 31 MB |
 
 Moving from tehsil + shifted DOB + 5-year bands to district + birth year + 10-year bands cut profile
 re-identification from 0.77 to 0.40 of raw for about 0.2 points of generalisation credit. Generalising rare

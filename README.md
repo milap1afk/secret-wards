@@ -120,15 +120,16 @@ never look like a PIN, phone or age.
 | PII recall (overall / Hindi / Hinglish) | 1.000 / 1.000 / 1.000 | 1.000 / 1.000 / 1.000 |
 | contextual precision (doctors, doses, C/O, eponyms…) | 1.000 | 1.000 |
 | clinical values kept | 99.97 % | 99.97 % |
-| linking precision / recall / F0.5 | 1.000 / 1.000 / 1.000 | 1.000 / 0.886 / 0.975 |
+| linking precision / recall / F0.5 | 1.000 / 1.000 / 1.000 | 1.000 / 1.000 / 1.000 |
 | canaries leaked | 0 / 4 | 0 / 4 |
-| run time / peak memory | 2.4 s / 31 MB | 2.4 s / 31 MB |
+| run time / peak memory | 2.4 s / 31 MB (20× data: 28 s / 330 MB) | 2.4 s / 31 MB |
 | repeat run, same secret | byte-identical | byte-identical |
 | run with a different secret | 0 pseudonyms shared | – |
 
-¹ `tools/chaos.py`: 115 name tokens replaced by names absent from our gazetteer, renamed headers, JSON keys
-and labels, changed ID and phone formats. Its Devanagari text keeps the old names, so the lower recall is
-partly an artefact of the test itself.
+¹ `tools/chaos.py`: Latin patient and relative names replaced by names absent from our gazetteer (spelling
+variants map to one new name; names that also occur in Devanagari keep their spelling so the test stays
+consistent), renamed headers, JSON keys and labels, changed ID and phone formats. A harsher variant that
+renamed all 115 name tokens kept detection at 1.000 and linking precision at 1.000.
 
 **Re-identification risk** (`tools/attack.py`, our implementation of A2–A5 from `ATTACKS.md`, relative to
 the same attack on raw data):

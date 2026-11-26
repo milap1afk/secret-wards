@@ -81,15 +81,33 @@ def main():
                     for t in e.get("tokens", []):
                         if re.fullmatch(r"[a-z]{3,}", t) and t not in gz.GENERIC_NAME_TOKENS and t not in ("asha", "bhaiya", "sahab", "behenji", "amma", "didi"):
                             toks.add(t)
+    # names that also occur in Devanagari keep their spelling (we cannot re-transliterate them consistently)
+    from wards.translit import name_key
+    deva_keys = set()
+    for f in truth["files"].values():
+        for u in f["units"].values():
+            for e in u["entities"]:
+                if e.get("match") == "name" and e.get("script") == "deva":
+                    for t in e.get("tokens", []):
+                        deva_keys.add(name_key(t))
+    toks = {t for t in toks if name_key(t) not in deva_keys}
     mapping = {}
+    by_key = {}
     gi = si = 0
     for t in sorted(toks):
+        k = name_key(t)
+        if k in by_key:                      # spelling variants (Harish/Hareesh) -> the same new name
+            mapping[t] = by_key[k]
+            continue
         if t in gz.SURNAMES:
             mapping[t] = surs[si % len(surs)] + ("" if si < len(surs) else str(si // len(surs)))
             si += 1
+            by_key[k] = mapping[t]
+            continue
         else:
             mapping[t] = given[gi % len(given)] + ("" if gi < len(given) else chr(97 + gi // len(given)))
             gi += 1
+        by_key[k] = mapping[t]
     rx = re.compile(r"(?<![A-Za-z])(" + "|".join(sorted((re.escape(k) for k in mapping), key=len, reverse=True)) + r")(?![A-Za-z])", re.I)
 
     def sub_names(s):
