@@ -64,8 +64,8 @@ def shift_days(key: str) -> int:
 
 
 # ---------------------------------------------------------------- ages
-def age_band(age: int) -> str:
-    w = int(POLICY["age_band_years"])
+def age_band(age: int, width: int = 0) -> str:
+    w = int(width or POLICY["age_band_years"])
     top = int(POLICY["age_top_code"])
     if age >= top:
         return f"{top}+"

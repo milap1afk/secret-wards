@@ -11,6 +11,7 @@ reduced to their type name before they reach the report.
 """
 from __future__ import annotations
 
+import collections
 import csv
 import hashlib
 import io
@@ -145,6 +146,8 @@ class Unit:
     district: str = ""
     name_keys: set = field(default_factory=set)
     date_order: str = "dmy"
+    age_width: int = 0          # >0 when local recoding widened this patient's age band
+    gen: bool = False           # something in this record was generalised (for an honest report)
 
 
 @dataclass
@@ -235,6 +238,9 @@ class Pipeline:
         self.n_generalized = 0
         self.rare: dict = {}
         self._dcache: dict = {}
+        self._cur_unit = None
+        self.n_recoded_patients = 0
+        self._unit_gen: dict = {}
 
     # ------------------------------------------------------------------ pass 0
     def ingest(self) -> None:
@@ -722,6 +728,38 @@ class Pipeline:
             if len(roots) > 1:
                 self.core_cluster.pop(c, None)
 
+    # ------------------------------------------------------------------ pass 2b: local recoding
+    def recode(self) -> None:
+        """Widen the age band of patients who are unique on (age band, sex, district, main diagnosis).
+
+        Only quasi-identifiers change: the wider band still contains the true age, and medical values, dates,
+        intervals and lengths of stay are untouched. Controlled by recode_k / recode_age_band_years."""
+        k = int(POLICY.get("recode_k", 0))
+        width = int(POLICY.get("recode_age_band_years", 20))
+        if k <= 1:
+            return
+        base = int(POLICY["age_band_years"])
+        clusters: dict = {}
+        for u in self.units:
+            if u.cluster is not None:
+                clusters.setdefault(u.cluster, []).append(u)
+        info = {}
+        for root, us in clusters.items():
+            ages = sorted(a for u in us for a in u.ev.ages)
+            if not ages:
+                continue
+            age = ages[len(ages) // 2]
+            sex = sorted(g for u in us for g in u.ev.gender)[:1]
+            dist = collections.Counter(d for u in us for d in _districts_of(u)).most_common(1)
+            dx = collections.Counter(c for u in us for c in _icd_of(u)).most_common(1)
+            info[root] = (age // base, tuple(sex), dist[0][0] if dist else "", dx[0][0] if dx else "")
+        sizes = collections.Counter(info.values())
+        for root, key in sorted(info.items(), key=lambda kv: str(kv[0])):
+            if sizes[key] < k:
+                self.n_recoded_patients += 1
+                for u in clusters[root]:
+                    u.age_width = width
+
     # ------------------------------------------------------------------ pass 3: sanitise
     def sanitize_all(self) -> list:
         records = []
@@ -755,6 +793,7 @@ class Pipeline:
                     if u.ev is not None and (u.ev.has_identity() or u.psn):
                         rec = {"file": job.out_rel, "loc": u.loc, "patient": u.psn}
                         records.append(rec)
+                        self._unit_gen[(job.out_rel, u.loc)] = u.gen
             except Exception as exc:  # noqa: BLE001
                 job.status, job.reason, job.out_rel = "quarantined", "sanitize_error_" + type(exc).__name__, ""
         return records
@@ -772,6 +811,7 @@ class Pipeline:
         return keys
 
     def _render_text(self, text: str, spans: list, u: Unit, sweep: set, *, field_sem: str = "") -> str:
+        self._cur_unit = u
         spans = list(spans)
         # sweep: remaining occurrences of this unit's name tokens
         if sweep:
@@ -814,7 +854,7 @@ class Pipeline:
         if k == "PROTECT":
             return None
         if k == "DOB" and POLICY.get("dob_policy") == "suppress":
-            self.n_generalized += 1
+            self._gen()
             return "[DOB]"
         if k in ("DATE", "DOB"):
             r = shift_date_string(seg, u.shift, u.date_order)
@@ -826,8 +866,8 @@ class Pipeline:
                 a = int(s.value)
             except ValueError:
                 return None
-            self.n_generalized += 1
-            return age_band(a)
+            self._gen()
+            return age_band(a, u.age_width)
         self.n_identifiers += 1
         self.entities[k] = self.entities.get(k, 0) + 1
         if k == "NAME":
@@ -871,6 +911,7 @@ class Pipeline:
                 return None
             return "[VILLAGE]"
         if k == "PIN":
+            self._gen()
             return pin_prefix(seg)
         return "[REDACTED]"
 
@@ -908,7 +949,13 @@ class Pipeline:
         return out
 
     # ---------- leaf rendering (CSV cells and JSON leaves)
+    def _gen(self) -> None:
+        self.n_generalized += 1
+        if self._cur_unit is not None:
+            self._cur_unit.gen = True
+
     def _render_leaf(self, lf: Leaf, u: Unit, sweep: set, ctx: dict):
+        self._cur_unit = u
         v = lf.value
         sem = lf.sem
         if v is None or isinstance(v, bool):
@@ -977,7 +1024,7 @@ class Pipeline:
             self._count("EMAIL")
             return "[EMAIL]"
         if sem == F.DOB:
-            self.n_generalized += 1
+            self._gen()
             if POLICY.get("dob_policy") == "suppress":
                 # a birth year pins age to +-1 year and defeats the age band; the band carries the age instead
                 return DROP_KEY if lf.extra.get("json") and lf.key == "birthDate" else "[DOB]"
@@ -994,28 +1041,29 @@ class Pipeline:
         if sem == F.AGE:
             a = parse_age(s)
             if a >= 0:
-                self.n_generalized += 1
+                self._gen()
                 m = re.match(r"^\s*\d{1,3}", fold(s))
-                return age_band(a) + s[m.end():]
+                return age_band(a, u.age_width) + s[m.end():]
             return s
         if sem == F.AGE_SEX:
             a = parse_age(s)
             if a >= 0:
-                self.n_generalized += 1
+                self._gen()
                 m = re.match(r"^\s*\d{1,3}", fold(s))
-                return age_band(a) + s[m.end():]
+                return age_band(a, u.age_width) + s[m.end():]
             return s
         if sem == F.PIN:
             self._count("PIN")
+            self._gen()
             return pin_prefix(s)
         if sem == F.VILLAGE:
             self._count("VILLAGE")
-            self.n_generalized += 1
+            self._gen()
             if POLICY.get("location_level") == "district":
                 return ctx.get("district") or "[VILLAGE]"
             return ctx.get("tehsil") or ctx.get("district") or "[VILLAGE]"
         if sem == F.TEHSIL and POLICY.get("location_level") == "district":
-            self.n_generalized += 1
+            self._gen()
             return ctx.get("district") or "[TEHSIL]"
         if sem == F.LOCALITY:
             self._count("LOCALITY")
@@ -1051,8 +1099,8 @@ class Pipeline:
         if sem in (F.AGE,):
             a = parse_age(v)
             if a >= 0:
-                self.n_generalized += 1
-                return age_band(a)
+                self._gen()
+                return age_band(a, self._cur_unit.age_width if self._cur_unit else 0)
             return v
         if isinstance(v, int) and not isinstance(v, bool):
             d = str(abs(v))
@@ -1221,10 +1269,13 @@ class Pipeline:
                 "files_total": len(files), "files_sanitized": n_san, "files_quarantined": len(files) - n_san,
                 "records_processed": len(records), "identifiers_detected": self.n_identifiers,
                 "records_linked": sum(1 for r in records if r["patient"]),
-                "records_generalized": sum(1 for u in self.units if u.ev and (u.ev.ages or u.ev.dob or u.ev.villages)),
+                "records_generalized": sum(1 for r in records if self._unit_gen.get((r["file"], r["loc"]))),
                 "records_suppressed": 0, "records_quarantined": 0,
             },
             "entities": dict(sorted(self.entities.items())),
+            "privacy": {"patients_recoded": self.n_recoded_patients,
+                        "age_band_years": int(POLICY["age_band_years"]),
+                        "recode_age_band_years": int(POLICY.get("recode_age_band_years", 0)) if int(POLICY.get("recode_k", 0)) > 1 else None},
             "timing": {"seconds": round(time.monotonic() - t0, 2)},
             "resources": {"peak_rss_mb": peak_rss_mb()},
         }
@@ -1344,6 +1395,29 @@ def fhir_map_value(key: str, v: str) -> str:
     return fhir_map_id(v) if re.fullmatch(r"[A-Za-z0-9\-.]{1,64}", v) else v
 
 
+_DISTT = re.compile(r"(?:Distt?\.?|District|जिला)\s+([A-Z][a-z]+(?:\s[A-Z][a-z]+)?|[\u0900-\u097F]+)")
+_ICD3 = re.compile(r"(?<![A-Za-z0-9])([A-TV-Z]\d{2})(?:\.\d{1,2})?(?![A-Za-z0-9])")
+
+
+def _texts_of(u) -> list:
+    t = [u.text] if u.text else []
+    return t + [str(lf.value) for lf in u.leaves if isinstance(lf.value, str)]
+
+
+def _districts_of(u) -> list:
+    out = [u.district.strip().lower()] if u.district else []
+    for lf in u.leaves:
+        if lf.sem == F.DISTRICT and isinstance(lf.value, str):
+            out.append(lf.value.strip().lower())
+    for t in _texts_of(u):
+        out += [m.group(1).strip().lower() for m in _DISTT.finditer(t)]
+    return out
+
+
+def _icd_of(u) -> list:
+    return [m.group(1) for t in _texts_of(u) for m in _ICD3.finditer(t)]
+
+
 def _ptr_escape(s: str) -> str:
     return s.replace("~", "~0").replace("/", "~1")
 
@@ -1453,6 +1527,10 @@ def run(inp: Path, out: Path) -> int:
             u.cluster, u.psn = None, None
             u.shift = shift_days("unit#" + u.file + "#" + u.loc)
     pl.rare = rare_mod.find_rare(pl.units, int(POLICY.get("rare_k", 3)))
+    try:
+        pl.recode()
+    except Exception:  # noqa: BLE001 - recoding is a privacy refinement; never let it stop the release
+        pass
     records = pl.sanitize_all()
     exported = {j.out_rel for j in pl.jobs if j.status == "sanitized"}
     records = [r for r in records if r["file"] in exported]

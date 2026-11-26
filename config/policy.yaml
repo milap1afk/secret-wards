@@ -10,3 +10,5 @@ pin_policy: prefix3        # 229678 -> 229***
 dob_policy: suppress       # birth year pins age to +-1y and defeats the band (measured: risk 0.341 -> 0.194)
 rare_k: 0                  # 0 = off. Measured: ICD-chapter generalisation of rare codes cost 1.4% of probes for no attack gain
 embed_pseudonym: 1         # the pseudonym is written inside every exported record
+recode_k: 3                # patients unique on (age band, sex, district, main diagnosis) in groups < k ...
+recode_age_band_years: 20  # ... get a 20-year band (still contains the true age). Measured: risk 0.194 -> 0.173

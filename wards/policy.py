@@ -14,6 +14,8 @@ DEFAULTS = {
     "dob_policy": "shift",        # DOB shifted with the patient's own date shift
     "rare_k": 3,                  # quasi-identifier groups smaller than k are generalised harder
     "embed_pseudonym": 1,         # write the pseudonym inside each exported record
+    "recode_k": 0,                # >1: widen the age band of patients unique on (band, sex, district, diagnosis)
+    "recode_age_band_years": 20,
 }
 
 
