@@ -1,4 +1,4 @@
 [submission]
-name  = "secret-wards"
+name  = "artificially-intelligent"
 setup = "pip install -r requirements.txt"
 run   = "python main.py --input {input} --output {output}"

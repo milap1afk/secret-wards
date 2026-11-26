@@ -1,6 +1,6 @@
-# <Team name>: a privacy firewall that reads Indian hospital records the way a clerk does
+# Artificially Intelligent: a privacy firewall that reads Indian hospital records the way a clerk does
 
-**Track 3 · Secret Wards** · Members: <4 names> · Repo: <github link>
+**Track 3 · Secret Wards** · Members: Milap Kothari, Arman Barbhuiya, Sourabh Srivastva, Rohan Singh · Repo: https://github.com/milap1afk/secret-wards
 
 ## 1. In one paragraph
 Our firewall de-identifies a mixed dump of registrations, OPD JSON, FHIR bundles, discharge summaries and

@@ -1,5 +1,7 @@
 # Secret Wards: an offline privacy firewall for Indian hospital records
 
+**Team Artificially Intelligent**: Milap Kothari, Arman Barbhuiya, Sourabh Srivastva, Rohan Singh
+
 Track 3 · Yugaantar DevForge. Offline, CPU-only, **LLM-free**, standard-library Python.
 
 It reads a dump of hospital exports (CSV/TSV, nested JSON, FHIR R4, free-text notes in English,
