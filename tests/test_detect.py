@@ -82,6 +82,10 @@ CASES = [
     ("जन्म तिथि: 12 अप्रैल 1977", ["12 अप्रैल 1977"], []),
     ("Escalation: +977 984-1052736, UK +44 20 7946 0958", ["+977 984-1052736", "+44 20 7946 0958"], []),
     ("Platelet 250000 /uL, WBC 13000, Temp 101.2 F", [], ["250000", "13000", "101.2"]),
+    # --- trained name scorer: unseen names, only with supporting context on the line
+    ("ललिता गायकवाड़ 51 वर्ष", ["ललिता गायकवाड़"], []),
+    ("Tab Telmisartan Amlodipine 49/M", [], ["Telmisartan", "Amlodipine"]),
+    ("Haemoglobin Random Blood Sugar 45/F", [], ["Haemoglobin", "Random Blood Sugar"]),
     # --- canary-style names with role context only
     ("Consent witnessed by Tsering Wangmo, phone 8010993510.", ["Tsering Wangmo", "8010993510"], []),
     ("called by Kaveri Nambiar 94054-71434", ["Kaveri Nambiar", "94054-71434"], []),
@@ -95,7 +99,7 @@ CASES = [
 
 PII_KINDS = {"NAME", "PHONE", "PHONE_MASKED", "AADHAAR", "AADHAAR_MASKED", "ABHA", "ABHA_ADDR", "EMAIL", "PAN",
              "INSURANCE", "MRN", "DOB", "HOUSE", "LOCALITY", "LANDMARK", "VILLAGE", "PIN", "ADDRESS",
-             "UPI", "GOVID", "LONGNUM"}
+             "UPI", "GOVID", "LONGNUM", "NAME_MODEL"}
 
 
 def covered(spans, text, needle):

@@ -985,6 +985,8 @@ class Pipeline:
             return age_band(a, u.age_width)
         self.n_identifiers += 1
         self.entities[k] = self.entities.get(k, 0) + 1
+        if k == "NAME_MODEL":
+            k = "NAME"
         if k == "NAME":
             keys = tok_keys(name_tokens(seg))
             is_patient = bool(keys & u.name_keys) or s.role == "patient"

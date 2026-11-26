@@ -32,7 +32,7 @@ PRIORITY = {
     "PROTECT": 100, "EMAIL": 90, "ABHA_ADDR": 90, "ABHA": 85, "AADHAAR": 84, "AADHAAR_MASKED": 83,
     "PAN": 82, "INSURANCE": 82, "GOVID": 81, "UPI": 90, "PHONE": 80, "LONGNUM": 77, "PHONE_MASKED": 79, "MRN": 78, "DOB": 75, "DATE": 70,
     "NAME": 60, "HOUSE": 55, "LOCALITY": 55, "LANDMARK": 55, "VILLAGE": 54, "PIN": 53, "ADDRESS": 52,
-    "AGE": 40,
+    "AGE": 40, "NAME_MODEL": 30,
 }
 
 
@@ -329,6 +329,7 @@ class Detector:
         self._address(text, f, spans, addr)
         self._lexicon(text, f, spans)
         self._gazetteer(text, f, spans)
+        self._model_names(text, f, spans)
         self._dates_ages(text, f, spans)
         return resolve(spans)
 
@@ -652,6 +653,25 @@ class Detector:
             hits = [k for k in keys if len(k) >= 3 and (k in gz.GIVEN_KEYS or k in gz.SURNAME_KEYS)]
             if hits and len(words) == 2 and not any(w in HINDI_STOP for w in words):
                 spans.append(Span(m.start(), m.end(), "NAME", value=m.group(0), meta={"src": "gazetteer-deva"}))
+
+    def _model_names(self, t, f, spans):
+        """Lowest layer: 2-3 name-like tokens the trained scorer accepts, only on a line that also carries
+        supporting context (age/sex, phone, ID or relation marker)."""
+        from .namemodel import is_name
+        support = re.compile(r"(?i)\b\d{1,3}\s*(?:yrs?|y)?\s*/\s*[mf]\b|वर्ष|\b[sdwc]\s*/\s*o\b|पुत्र|पत्नी|"
+                             r"(?<!\d)[6-9]\d{9}(?!\d)|(?<!\d)[6-9]\d{4}[ \-]\d{5}(?!\d)|\b[a-z]{2,6}[\-/]?\d{4,}")
+        pos = 0
+        for line in t.split("\n"):
+            if support.search(fold(line)):
+                for m in re.finditer(r"(?<![\w\u0900-\u097F])(?:[A-Z][a-z]{2,}|[A-Z]{3,}|[\u0900-\u0963\u0970-\u097F]{2,})"
+                                     r"(?:\s+(?:[A-Z][a-z]{2,}|[A-Z]{3,}|[\u0900-\u0963\u0970-\u097F]{2,})){1,2}(?![\w\u0900-\u097F])", line):
+                    words = m.group(0).split()
+                    if all(is_name_token(w) and w not in HINDI_STOP and is_name(w) for w in words):
+                        pre = line[max(0, m.start() - 5):m.start()]
+                        if not re.search(r"(?i)\b(?:dr|doctor)\.?\s*$|डॉ\.?\s*$", pre):
+                            spans.append(Span(pos + m.start(), pos + m.end(), "NAME_MODEL", value=m.group(0),
+                                              meta={"src": "model"}))
+            pos += len(line) + 1
 
     def _dates_ages(self, t, f, spans):
         for m in RE_ISO.finditer(f):

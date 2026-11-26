@@ -211,8 +211,14 @@ python3 tools/chaos.py      --dev kit/dev --out chaos
 ```
 
 ## Models
-None. No LLMs, no generative models, no pretrained transformers. Rules, gazetteers, transliteration and
-union-find only.
+One small model, trained by us; no LLMs, no generative models, no pretrained models of any kind.
+
+| | |
+|---|---|
+| What | `wards/data/name_model.json` (about 150 KB): character 2–4-gram multinomial naive Bayes, "is this token an Indian personal name?", Latin and Devanagari |
+| Training | `python3 tools/train_name_model.py`: standard library, deterministic. Positives: gazetteer names plus rule-generated spelling variants and rule-based Devanagari forms. Negatives: drug names, clinical terms and ordinary words from the practice corpus' medical values and clean documents |
+| Held-out test | 20 % of names (208 names never seen in training) and 20 % of negatives: recall 0.989, precision 0.955 (per token) |
+| Use | lowest-priority detector layer (`Detector._model_names`); fires only for 2–3 name-like tokens on a line that also carries an age/sex marker, phone, ID or relation marker. It never feeds patient linking |
 
 ## Known limitations
 * Names with no context at all (no label, honorific, relation, role or nearby identifier) that are also
