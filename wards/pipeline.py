@@ -144,9 +144,14 @@ def table_delimiter(text: str):
     return None
 
 
+HL7_START = re.compile(r"\A\s*MSH([|^~\\&#!])[\^~\\&#!]{3,4}\1")
+
+
 def sniff_format(rel: str, text: str) -> str:
     ext = Path(rel).suffix.lower()
     head = text.lstrip()[:1]
+    if HL7_START.match(text):
+        return "hl7"           # HL7 v2 is recognised by its MSH header whatever the extension
     if ext in XML_EXT:
         if head != "<":
             raise Quarantine("format_mismatch")
@@ -362,6 +367,8 @@ class Pipeline:
                     self._load_fixed(job)
                 elif job.fmt == "xml":
                     self._load_xml(job)
+                elif job.fmt == "hl7":
+                    self._load_hl7(job)
                 job.date_order = self._date_order(job)
             except Quarantine as q:
                 job.status, job.reason = "quarantined", str(q)
@@ -408,6 +415,23 @@ class Pipeline:
             raise Quarantine("malformed_xml")
         m = re.match(r"\s*(<\?xml[^>]*\?>)", job.text)
         job.xml_decl = m.group(1) if m else ""
+
+    def _load_hl7(self, job: FileJob) -> None:
+        """HL7 v2: segments end with CR (or LF / CRLF); fields split on the separator MSH declares."""
+        txt = job.text.lstrip()
+        job.hl7_lead = job.text[:len(job.text) - len(txt)]
+        m = re.search(r"\r\n|\r|\n", txt)
+        job.hl7_seg = m.group(0) if m else "\r"
+        job.hl7_fs = txt[3]
+        segs = re.split(r"\r\n|\r|\n", txt)
+        job.hl7_tail = segs and segs[-1] == ""
+        segs = [sg for sg in segs if sg != ""]
+        msgs = []
+        for sg in segs:
+            if sg.startswith("MSH" + job.hl7_fs) or not msgs:
+                msgs.append([])
+            msgs[-1].append(sg.split(job.hl7_fs))
+        job.data = msgs
 
     def _load_fixed(self, job: FileJob) -> None:
         lines = job.text.splitlines()
@@ -497,11 +521,34 @@ class Pipeline:
                                 u.loc = "row:" + u.loc[1:].split("/", 1)[0]
                 elif job.fmt == "xml":
                     self._units_xml(job)
+                elif job.fmt == "hl7":
+                    self._units_hl7(job)
                 else:
                     u = Unit(job.rel, "doc", "doc", text=job.text, date_order=job.date_order)
                     job.units = [u]
             except Exception as exc:  # noqa: BLE001
                 job.status, job.reason = "quarantined", "parse_error_" + type(exc).__name__
+
+    def _units_hl7(self, job: FileJob) -> None:
+        many = len(job.data) > 1
+        for i, msg in enumerate(job.data):
+            u = Unit(job.rel, f"row:{i}" if many else "doc", "row", date_order=job.date_order)
+            for si, fields in enumerate(msg):
+                seg = fields[0][:3]
+                for fi in range(1, len(fields)):
+                    raw = fields[fi]
+                    if not raw.strip():
+                        continue
+                    pos = fi + 1 if seg == "MSH" else fi      # MSH-1 is the separator itself
+                    if (seg, pos) in HL7_TS and re.match(r"\d{8}(?!\d{0,1}[^\d])", raw) and raw[:8].isdigit():
+                        # TS: YYYYMMDD[HHMM[SS]][+ZZZZ]: shift the date, keep the time of day as it was
+                        u.leaves.append(Leaf(sem=F.DATE, value=raw[:8], path=(si, fi), key=f"{seg}-{pos}",
+                                             extra={"hl7_rest": raw[8:]}))
+                        continue
+                    sem = HL7_SEM.get((seg, pos), F.KEEP if seg == "MSH" else F.TEXT)
+                    val = _hl7_readable(raw, sem)
+                    u.leaves.append(Leaf(sem=sem, value=val, path=(si, fi), key=f"{seg}-{pos}"))
+            job.units.append(u)
 
     def _units_csv(self, job: FileJob) -> None:
         sems = [F.classify_header(h) for h in job.header]
@@ -965,6 +1012,8 @@ class Pipeline:
                     body = self._write_fixed(job)
                 elif job.fmt == "xml":
                     body = self._write_xml(job)
+                elif job.fmt == "hl7":
+                    body = self._write_hl7(job)
                 else:
                     body = self._write_text(job)
                 out_rel = self._safe_relpath(job)
@@ -1378,6 +1427,22 @@ class Pipeline:
             w.writerow(row)
         return buf.getvalue()
 
+    def _write_hl7(self, job: FileJob) -> str:
+        fs = job.hl7_fs
+        segs = []
+        for msg, u in zip(job.data, job.units):
+            found = self._prepare_unit(u)
+            sweep = self._sweep_keys(u, found)
+            ctx = {"tehsil": u.tehsil, "district": u.district}
+            new = [list(f) for f in msg]
+            for lf in u.leaves:
+                si, fi = lf.path
+                v = self._render_leaf(lf, u, sweep, ctx)
+                v = ("" if v is None else str(v)) + (lf.extra.get("hl7_rest", "") if v else "")
+                new[si][fi] = re.sub(r"[\r\n]+", " ", v).replace(fs, " ")   # a value can never split a segment
+            segs.extend(fs.join(f) for f in new)
+        return job.hl7_lead + job.hl7_seg.join(segs) + (job.hl7_seg if job.hl7_tail else "")
+
     def _write_xml(self, job: FileJob) -> str:
         import xml.etree.ElementTree as ET
         u = job.units[0]
@@ -1568,6 +1633,43 @@ def _walk(data):
             out.append((path, key, anc[:-1], rt, node))
     out.sort(key=lambda x: [str(p) for p in x[0]])
     return out
+
+
+# HL7 v2.x field positions that hold a person's data (PID, NK1, PV1, IN1, GT1); every other field is free text
+HL7_SEM = {
+    ("PID", 2): F.UHID, ("PID", 3): F.UHID, ("PID", 4): F.UHID, ("PID", 5): F.NAME, ("PID", 6): F.REL_NAME,
+    ("PID", 7): F.DOB, ("PID", 9): F.NAME, ("PID", 11): F.ADDRESS, ("PID", 13): F.PHONE, ("PID", 14): F.PHONE,
+    ("PID", 18): F.ENC, ("PID", 19): F.AADHAAR, ("PID", 20): F.UHID, ("PID", 21): F.UHID,
+    ("NK1", 2): F.REL_NAME, ("NK1", 4): F.ADDRESS, ("NK1", 5): F.PHONE, ("NK1", 6): F.PHONE,
+    ("NK1", 30): F.REL_NAME, ("NK1", 32): F.ADDRESS, ("NK1", 31): F.PHONE,
+    ("PV1", 7): F.DOCTOR, ("PV1", 8): F.DOCTOR, ("PV1", 9): F.DOCTOR, ("PV1", 17): F.DOCTOR, ("PV1", 19): F.ENC,
+    ("IN1", 16): F.REL_NAME, ("IN1", 19): F.ADDRESS, ("IN1", 36): F.INSURANCE, ("IN1", 49): F.UHID,
+    ("GT1", 3): F.REL_NAME, ("GT1", 5): F.ADDRESS, ("GT1", 6): F.PHONE, ("GT1", 7): F.PHONE,
+}
+
+
+HL7_TS = {("MSH", 7), ("EVN", 2), ("EVN", 6), ("PID", 29), ("PV1", 44), ("PV1", 45), ("OBR", 6), ("OBR", 7),
+          ("OBR", 8), ("OBR", 14), ("OBR", 22), ("OBX", 14), ("OBX", 19), ("ORC", 9), ("TXA", 4), ("TXA", 6),
+          ("AL1", 6), ("DG1", 5), ("PR1", 5), ("IN1", 12), ("IN1", 13)}
+
+
+def _hl7_readable(raw: str, sem: str) -> str:
+    """Turn HL7 components into the words a field classifier expects (XPN: family^given^middle^suffix^prefix)."""
+    first = raw.split("~")[0]
+    parts = first.split("^")
+    if sem in (F.NAME, F.REL_NAME, F.DOCTOR):
+        if sem == F.DOCTOR and len(parts) > 1 and parts[0][:1].isdigit():
+            parts = parts[1:]                                  # XCN starts with the person's id
+        fam, given = parts[0], parts[1] if len(parts) > 1 else ""
+        mid = parts[2] if len(parts) > 2 else ""
+        pre = parts[4] if len(parts) > 4 else ""
+        return " ".join(x for x in (pre, given, mid, fam) if x) if sem != F.DOCTOR else \
+            "Dr. " + " ".join(x for x in (given, mid, fam) if x)
+    if sem == F.ADDRESS:
+        return ", ".join(x for x in parts if x)
+    if sem in (F.UHID, F.ENC, F.AADHAAR, F.INSURANCE, F.PHONE, F.DOB):
+        return parts[0]
+    return raw
 
 
 _PERSON_SEMS = {F.NAME, F.FIRST, F.UHID, F.PHONE, F.AADHAAR, F.ABHA, F.REL_NAME, F.DOB, F.OTHER_PERSON}
