@@ -26,6 +26,7 @@ from wards import gazetteer as gz  # noqa: E402
 from wards.textnorm import fold  # noqa: E402
 from wards.translit import to_latin  # noqa: E402
 
+REF_YEAR = 2026   # replaced from truth["ref_date"] at run time
 FILTER_ORDER = ["phone", "email", "last4", "mphone", "district", "gender", "age", "byear", "tehsil", "village", "pin", "pin3"]
 
 
@@ -67,6 +68,9 @@ def extract(text, reg_vocab):
         y = m.group(1) or m.group(2)
         if y and int(y) < 2015:
             ev["byear"].add(int(y))
+    # a bare year under a DOB field or anchor ("DOB: 1977", "dob": "1977", birthDate "1977", जन्म तिथि: 1977)
+    for m in re.finditer(r"(?:\bd\.?o\.?b\b|birth\s*_?date|birthdate|date\s*of\s*birth|janm\s*tithi|जन्म\s*तिथि)[\"']?\s*[:=]?\s*[\"']?\s*(19\d\d|20[01]\d)(?![\d/\-.])", t):
+        ev["byear"].add(int(m.group(1)))
     for m in re.finditer(r"(?<![\d\-/.])([1-8]\d{5})(?![\d\-/.])", t_nouuid):
         ev["pin"].add(m.group(1))
     for m in re.finditer(r"(?<!\d)([1-8]\d{2})\*{3}", t):
@@ -108,7 +112,8 @@ def attack(ev, reg):
             if f == "age":
                 return r["age"] is not None and any(lo - 1 <= r["age"] <= hi + 2 for lo, hi in vals)
             if f == "byear":
-                return r["age"] is not None and any(abs((2026 - y) - r["age"]) <= 2 for y in vals)
+                # age on the reference date is REF_YEAR - y, or one less if the birthday has not come yet
+                return r["age"] is not None and any(REF_YEAR - y - 1 <= r["age"] <= REF_YEAR - y for y in vals)
             if f == "pin":
                 return r["pin"] in vals
             if f == "pin3":
@@ -154,6 +159,10 @@ def run(dev, root, use_output, truth, reg, vocab):
             txt = load_unit_text(path, f["format"], loc)
             if txt is None:
                 continue
+            if loc.startswith("row:") and f["format"] in ("csv", "tsv"):
+                hdr = load_unit_text(path, f["format"], "@header") or ""
+                d = "\t" if "\t" in hdr else ","
+                txt = " | ".join(f"{h}: {v}" for h, v in zip(hdr.split(d), txt.split(d)))
             rid = truth["patients"][un["patient"]]["rid"]
             records.append((rid, extract(txt, vocab), un.get("patient"), rel))
     # A2/A3
@@ -372,6 +381,8 @@ def main():
     dev_root = Path(a.dev)
     dev, out = Path(a.dev), Path(a.output)
     truth = json.loads((dev / "truth" / "truth.json").read_text(encoding="utf-8"))
+    global REF_YEAR
+    REF_YEAR = int(str(truth.get("ref_date", "2026"))[:4])
     reg = load_registry(dev)
     vocab = {k: {fold(r[k]) for r in reg if r[k]} for k in ("district", "tehsil", "village")}
     raw = run(dev, out, False, truth, reg, vocab)
