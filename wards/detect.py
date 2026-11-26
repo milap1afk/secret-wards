@@ -140,7 +140,7 @@ LABEL_SEP = r"\s*(?:[:\-–=]|\bis\b)?\s*"
 ID_LABELS = re.compile(
     r"(?i)\b(uhid|u\.h\.i\.d|mrn|m\.r\.n|cr\s*no|reg(?:istration)?\.?\s*(?:no|number|id)|patient\s*id|pt\.?\s*id|hospital\s*(?:no|id)|"
     r"ipd\s*(?:no|number)|ip\s*no|adm(?:ission)?\.?\s*(?:no|number)|opd\s*reg\s*no|file\s*no|card\s*no|"
-    r"health\s*id|abha\s*(?:no|number|id)?|aadhaa?r\s*(?:no|number)?|uid)\b\.?\s*[:#\-–=]?\s*"
+    r"health\s*id|abha\s*(?:no|number|id)?|aadhaa?r\s*(?:no|number)?|uid|ipd|uhid)\b\.?(?:\s*(?:no|num|number)\b\.?)?\s*#?\s*[:\-–=]?\s*"
 )
 NAME_LABELS = re.compile(
     r"(?i)(?<![a-z])(patient'?s?\s*name|name\s*of\s*(?:the\s*)?patient|pt\.?\s*name|pt|patient|naam|name|full\s*name|"
