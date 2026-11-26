@@ -77,7 +77,7 @@ TOKEN_RE = re.compile(r"[A-Za-z\u00C0-\u024F][A-Za-z\u00C0-\u024F'’]*\.?|[\u09
 HINDI_STOP = set("""
 को है हैं से में की का के ने दिन बुखार नाम आयु वर्ष ग्राम तारीख पर्चा ओपीडी और मरीज़ मरीज पता मकान नं तहसील जिला
 पिन मोबाइल महिला पुरुष पास पीछे सामने मंदिर मस्जिद गुरुद्वारे गुरुद्वारा भवन पंचायत स्कूल टंकी पानी बाज़ार बाजार
-कॉलोनी नगर बस्ती चौक कोतवाली काली माता हनुमान शिव जामा प्राथमिक विद्यालय दवा दवाई गोली दर्द पेट सिर खांसी
+कॉलोनी नगर बस्ती चौक मोहल्ला मुहल्ला वार्ड गली सड़क रोड मार्ग कोतवाली काली माता हनुमान शिव जामा प्राथमिक विद्यालय दवा दवाई गोली दर्द पेट सिर खांसी
 उल्टी दस्त कमजोरी सांस रोज़ रोज सुबह शाम रात दोपहर खाना बाद पहले साथ लिए लिया दिया गया गई हुआ हुई था थी थे
 कर करें करना रहा रही रहे जांच रिपोर्ट अस्पताल डॉक्टर डॉ नर्स वार्ड बिस्तर भर्ती छुट्टी निदान इलाज सलाह समीक्षा
 उपचार हफ्ते सप्ताह महीने महीना साल एक दो तीन चार पांच छह सात आठ नौ दस बार भी नहीं हाँ जी श्री श्रीमती कुमारी
@@ -111,8 +111,8 @@ SEP = r"[\s\-./]?"
 RE_EMAIL = re.compile(r"[a-z0-9][a-z0-9._%+\-]*@[a-z0-9\-]+(?:\.[a-z0-9\-]+)+")
 RE_ABHA_ADDR = re.compile(r"\b[a-z0-9][a-z0-9._]{2,}@(?:abdm|sbx|ndhm|abha)\b")
 RE_ABHA = re.compile(r"(?<![\d])\d{2}[\s\-]\d{4}[\s\-]\d{4}[\s\-]\d{4}(?![\d])|(?<![\d])\d{14}(?![\d])")
-RE_AADHAAR = re.compile(r"(?<![\d])[2-9]\d{3}[\s\-]?\d{4}[\s\-]?\d{4}(?![\d])")
-RE_AADHAAR_MASKED = re.compile(r"(?<![a-z0-9])(?:[x*]{4}[\s\-]?){2}\d{4}(?!\d)|(?<![a-z0-9])[x*]{8}\d{4}(?!\d)")
+RE_AADHAAR = re.compile(r"(?<![\d.])[2-9]\d{3}([\s\-.]?)\d{4}\1\d{4}(?![\d])")
+RE_AADHAAR_MASKED = re.compile(r"(?<![a-z0-9])(?:[x*]{4}[\s\-.]?){2}\d{4}(?!\d)|(?<![a-z0-9])[x*]{8}\d{4}(?!\d)")
 RE_PAN = re.compile(r"(?<![a-z0-9])[a-z]{5}\d{4}[a-z](?![a-z0-9])")
 RE_PHONE = re.compile(
     r"(?<![\d+])(?:(?:\+|00)?91[ \-]?|0)?[6-9](?:[ \-]?\d){9}(?![\d])"
@@ -130,6 +130,9 @@ RE_MRN_ALNUM = re.compile(r"(?<![a-z0-9])[a-z]{2,6}[\-/]?\d{2,4}[\-/]\d{3,8}(?![
 NON_ID_PREFIXES = {
     "opd", "bl", "bill", "s", "amb", "hd", "loinc", "icd", "sg", "mg", "se", "sn", "pkg", "lot", "batch",
     "ref", "inv", "rx", "trip", "page", "v", "ver", "tkt", "ticket", "req", "order", "ord", "sample", "smp",
+    "jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "sept", "oct", "nov", "dec", "january",
+    "february", "march", "april", "june", "july", "august", "september", "october", "november", "december",
+    "year", "yr", "dated", "date", "dt", "time", "since", "till", "upto",
 }
 
 LABEL_SEP = r"\s*(?:[:\-–=]|\bis\b)?\s*"
@@ -150,7 +153,7 @@ REL_LABEL_WORDS = re.compile(r"(?i)attendant|relative|guardian|informant|caller|
 PHONE_LABELS = re.compile(r"(?i)\b(mob(?:ile)?|ph(?:one)?|tel|contact|cell|whats\s*app|call\s*back|callback|मोबाइल|फ़ोन|फोन)\b\.?\s*(?:no\.?|number)?\s*[:\-–=]?\s*")
 ADDR_LABELS = re.compile(r"(?i)(?<![a-z])(address|addr|add|residence|r/o|resident\s+of|पता|निवास)\s*[:\-–.]\s*")
 VILLAGE_MARKERS = re.compile(r"(?i)(?<![a-z])(vill(?:age)?\.?|gram|gaon|ग्राम|गांव|गाँव|मौजा|mauza)\s*[:\-–.]?\s*")
-DOB_LABELS = re.compile(r"(?i)(?<![a-z])(dob|d\.o\.b|date\s*of\s*birth|birth\s*date|born\s*on|janm\s*tithi|जन्म\s*तिथि)\s*[:\-–=]?\s*")
+DOB_LABELS = re.compile(r"(?i)(?<![a-z])(dob|d\.\s*o\.\s*b\.?|date\s*of\s*birth|birth\s*date|born\s*on|janm\s*tithi|जन्म\s*तिथि)\s*[:\-–=]?\s*")
 
 RELATION_RE = re.compile(
     r"(?<![A-Za-z])(S\s*/\s*[Oo]|D\s*/\s*[Oo]|W\s*/\s*[Oo]|C\s*/\s*[Oo]|H\s*/\s*[Oo]|Son\s+of|Daughter\s+of|Wife\s+of|Husband\s+of|"
@@ -205,6 +208,8 @@ _MON = r"(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug
 RE_ISO = re.compile(r"(?<![\d])(\d{4})-(\d{2})-(\d{2})(T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+\-]\d{2}:?\d{2})?)?(?![\d])")
 RE_NUMDATE = re.compile(r"(?<![\d/.\-])(\d{1,2})([/.\-])(\d{1,2})\2(\d{4}|\d{2})(?![\d])")
 RE_TEXTDATE = re.compile(r"(?i)(?<![a-z\d])(\d{1,2})(?:st|nd|rd|th)?\s+(" + _MON + r")\.?,?(?:\s+(\d{4}))?(?![a-z])")
+RE_MONDATE = re.compile(r"(?i)(?<![a-z\d])(\d{1,2})[\-/ ](" + _MON + r")[\-/ ,]+(\d{4}|\d{2})(?![\d])")
+RE_YMD = re.compile(r"(?<![\d])(\d{4})[/.](\d{1,2})[/.](\d{1,2})(?![\d])")
 RE_TEXTDATE2 = re.compile(r"(?i)(?<![a-z\d])(" + _MON + r")\.?\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{4})(?![\d])")
 RE_AGE = re.compile(
     r"(?i)(?<![\d\-/.x])(?<!x )(\d{1,3})\s*(?:yrs?|years?|y)\.?(?=\s*/\s*(?:[mf]\b|male|female)|\s*,?\s*(?:male|female|m\b|f\b|old\b))"
@@ -594,6 +599,10 @@ class Detector:
             spans.append(Span(m.start(), m.end(), "DATE", value=m.group(0), meta={"fmt": "num"}))
         for m in RE_TEXTDATE.finditer(f):
             spans.append(Span(m.start(), m.end(), "DATE", value=m.group(0), meta={"fmt": "text"}))
+        for m in RE_MONDATE.finditer(f):
+            spans.append(Span(m.start(), m.end(), "DATE", value=m.group(0), meta={"fmt": "mon"}))
+        for m in RE_YMD.finditer(f):
+            spans.append(Span(m.start(), m.end(), "DATE", value=m.group(0), meta={"fmt": "ymd"}))
         for m in RE_TEXTDATE2.finditer(f):
             spans.append(Span(m.start(), m.end(), "DATE", value=m.group(0), meta={"fmt": "text2"}))
         for m in RE_AGE.finditer(f):
@@ -614,7 +623,7 @@ def _id_core(s: str) -> str:
 
 
 def _match_date_at(t: str, f: str, pos: int):
-    for rx, fmt in ((RE_ISO, "iso"), (RE_NUMDATE, "num"), (RE_TEXTDATE, "text")):
+    for rx, fmt in ((RE_ISO, "iso"), (RE_NUMDATE, "num"), (RE_MONDATE, "mon"), (RE_YMD, "ymd"), (RE_TEXTDATE, "text")):
         m = rx.match(f, pos)
         if m:
             return (m.start(), m.end(), m.group(0), {"fmt": fmt})

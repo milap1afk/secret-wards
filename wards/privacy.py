@@ -93,6 +93,8 @@ def parse_num_date(s: str, order: str):
         return None
     a, sep, b, y = int(m.group(1)), m.group(2), int(m.group(3)), m.group(4)
     year = int(y) if len(y) == 4 else 2000 + int(y)
+    if len(y) == 2 and year > 2030:
+        year -= 100
     if order == "mdy":
         d = _mk(year, a, b)
         if d is None:
@@ -159,6 +161,14 @@ def format_date(d: dt.date, info: dict) -> str:
     st = info["style"]
     if st == "num":
         return format_num_date(d, info)
+    if st == "mon":
+        mon = MONTH_NAMES[d.month - 1][:3] if info["abbr"] else MONTH_NAMES[d.month - 1]
+        mon = mon.upper() if info["upper"] else mon
+        y = f"{d.year % 100:02d}" if info["y2"] else str(d.year)
+        day = f"{d.day:02d}" if info["pad"] else str(d.day)
+        return f"{day}{info['s1']}{mon}{info['s2']}{y}"
+    if st == "ymd":
+        return f"{d.year:04d}{info['sep']}{d.month:02d}{info['sep']}{d.day:02d}"
     if st == "iso":
         return f"{d.year:04d}-{d.month:02d}-{d.day:02d}" + info.get("tail", "")
     mon = MONTH_NAMES[d.month - 1]
@@ -172,8 +182,37 @@ def format_date(d: dt.date, info: dict) -> str:
     return f"{mon} {d.day}, {d.year}"
 
 
+def parse_mon_date(s: str):
+    m = re.match(r"(?i)^\s*(\d{1,2})([\-/ ])([a-z]+)\.?([\-/ ,]+)(\d{4}|\d{2})\s*$", s)
+    if not m:
+        return None
+    mon = _MON_IDX.get(m.group(3).lower()[:4]) or _MON_IDX.get(m.group(3).lower()[:3])
+    if not mon:
+        return None
+    y = int(m.group(5)) if len(m.group(5)) == 4 else 2000 + int(m.group(5))
+    if len(m.group(5)) == 2 and y > 2030:
+        y -= 100
+    d = _mk(y, mon, int(m.group(1)))
+    if d is None:
+        return None
+    return d, {"style": "mon", "s1": m.group(2), "s2": m.group(4), "abbr": len(m.group(3)) <= 4,
+               "upper": m.group(3).isupper(), "y2": len(m.group(5)) == 2, "pad": len(m.group(1)) == 2}
+
+
+def parse_ymd(s: str):
+    m = re.match(r"^\s*(\d{4})([/.])(\d{1,2})\2(\d{1,2})\s*$", s)
+    if not m:
+        return None
+    d = _mk(int(m.group(1)), int(m.group(3)), int(m.group(4)))
+    return (d, {"style": "ymd", "sep": m.group(2)}) if d else None
+
+
 def parse_any_date(s: str, order: str, ref_year: int = 2026):
     s2 = s.strip()
+    for fn in (parse_mon_date, parse_ymd):
+        r = fn(s2)
+        if r:
+            return r
     r = parse_iso(s2)
     if r:
         return r
