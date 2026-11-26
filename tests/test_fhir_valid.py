@@ -48,6 +48,7 @@ CONTROLS = {
     "missing required": lambda b: b["entry"][1]["resource"].pop("status"),
     "lost xhtml namespace": lambda b: b["entry"][0]["resource"]["text"].__setitem__("div", "<div>x</div>"),
     "unknown resourceType": lambda b: b["entry"][2]["resource"].__setitem__("resourceType", "Foo"),
+    "empty string value": lambda b: b["entry"][0]["resource"].__setitem__("name", [{"family": ""}]),
 }
 
 

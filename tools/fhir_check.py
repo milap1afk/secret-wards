@@ -95,6 +95,8 @@ def check_bundle(b) -> list:
             for k, v in o.items():
                 p = path + "/" + k
                 if isinstance(v, str):
+                    if v == "" or v != v.strip() and not v.strip():
+                        issues.append(f"empty string at {p} (FHIR R4 forbids empty values)")
                     if k in DATE_FIELDS and not DATE.match(v):
                         issues.append(f"bad date {p}={v[:25]}")
                     elif k in INSTANT_FIELDS and not INSTANT.match(v):
@@ -114,6 +116,8 @@ def check_bundle(b) -> list:
                 walk(v, p)
         elif isinstance(o, list):
             for v in o:
+                if v == "":
+                    issues.append(f"empty string in list at {path} (FHIR R4 forbids empty values)")
                 walk(v, path + "/[]")
     walk(b, "")
     return issues

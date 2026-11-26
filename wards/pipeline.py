@@ -1177,7 +1177,9 @@ class Pipeline:
             return psn or "[PATIENT]"
         if sem in (F.LAST, F.LOCAL_NAME):
             self._count("NAME")
-            return "[REDACTED]" if not psn else ("" if sem == F.LAST and lf.extra.get("json") else "[REDACTED]")
+            if sem == F.LAST and lf.extra.get("json") and lf.key == "family":
+                return DROP_KEY              # optional FHIR element; an empty string is invalid R4
+            return "[REDACTED]"
         if sem == F.REL_NAME:
             mark, rest = strip_rel_marker(s)
             if not rest.strip():
