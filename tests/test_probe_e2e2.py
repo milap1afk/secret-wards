@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Round-5 end-to-end probes for structural hiding places: names in CSV headers, Devanagari file names,
+"""Round-5/7 end-to-end probes for structural hiding places: names in CSV headers, Devanagari file names,
 Devanagari JSON keys, free-text metadata values, base64 inside plain notes, XML attributes, FHIR extensions,
-contact lists. Nothing planted may survive anywhere; medical values must. Run: python3 tests/test_probe_e2e2.py"""
+contact lists, label/value pairs. Nothing planted may survive anywhere; medical values must. Run: python3 tests/test_probe_e2e2.py"""
 import base64
 import json
 import os
@@ -12,7 +12,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 PLANTED = ["Kalpana", "9876512345", "सुरेश यादव", "9812300022", "Gurpreet", "Lalita", "9812312312", "सुनीता", "9876500011",
-           "Hemant Joshi", "9898123450", "Ishwari", "Tenzin Norbu", "9612300456", "Mridula", "Wangkhem"]
+           "Hemant Joshi", "9898123450", "Ishwari", "Tenzin Norbu", "9612300456", "Mridula", "Wangkhem",
+           "Bhagwati", "Kunwar Pal"]
 KEEP = ["Hb 10.2 g/dL", "Tab Metformin 500 mg 1-0-1", "BP 130/84", "Typhoid fever (A01.0)"]
 
 
@@ -25,6 +26,8 @@ def build(d: Path):
                                                  "contacts": [{"type": "relative", "value": "Hemant Joshi"},
                                                               {"type": "phone", "value": "9898123450"}]},
                                                 ensure_ascii=False), encoding="utf-8")
+    (d / "pairs.json").write_text(json.dumps({"fields": [["patient_name", "Bhagwati Rana"], ["dx", "Typhoid fever (A01.0)"]],
+                                              "kv": [{"key": "Guardian", "value": "Kunwar Pal"}]}), encoding="utf-8")
     b64 = base64.b64encode("Report of Lalita Devi, mob 9812312312".encode()).decode()
     (d / "note.txt").write_text(f"Tab Metformin 500 mg 1-0-1. BP 130/84.\nattachment: {b64}\n", encoding="utf-8")
     (d / "cda.xml").write_text('<?xml version="1.0"?><doc><patient name="Ishwari Bhandari" phone="9612300400"/>'

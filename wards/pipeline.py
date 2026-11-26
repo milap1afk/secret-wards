@@ -640,6 +640,14 @@ class Pipeline:
         job.units = [u]
 
     def _json_sem(self, key, anc, rt, path, data) -> str:
+        lab = _pair_label(data, path)
+        if lab:
+            # label/value pairs: ["patient_name", "X"], {"k": "Guardian", "v": "X"}: the label types the value
+            ps = F.classify_json(lab, [a for a in anc if isinstance(a, str)], rt or "")
+            if ps == F.TEXT:
+                ps = F.classify_header(lab)
+            if ps not in (F.TEXT, F.KEEP):
+                return ps
         if isinstance(key, int):
             # list element: semantics of the parent key
             parent = next((a for a in reversed(anc) if isinstance(a, str)), "")
@@ -1803,6 +1811,30 @@ def _ptr_escape(s: str) -> str:
 
 def _is_meta_path(path) -> bool:
     return bool(path) and isinstance(path[0], str) and (path[0].startswith("_") or path[0] in ("meta", "export_meta", "metadata"))
+
+
+_PAIR_KEYS = ("k", "key", "label", "field", "attribute", "attr", "param", "parameter", "title", "fieldname", "field_name")
+_PAIR_VALS = ("v", "val", "value", "data", "text", "answer")
+
+
+def _pair_label(data, path):
+    """The label of a label/value pair holding this leaf, or ''."""
+    if not path:
+        return ""
+    node = data
+    try:
+        for p in path[:-1]:
+            node = node[p]
+    except (KeyError, IndexError, TypeError):
+        return ""
+    last = path[-1]
+    if isinstance(node, list) and last == 1 and len(node) == 2 and isinstance(node[0], str) and len(node[0]) <= 40:
+        return node[0]
+    if isinstance(node, dict) and isinstance(last, str) and last.lower() in _PAIR_VALS:
+        for k in node:
+            if isinstance(k, str) and k.lower() in _PAIR_KEYS and isinstance(node[k], str) and len(node[k]) <= 40:
+                return node[k]
+    return ""
 
 
 def _sibling(data, path, key):
