@@ -82,7 +82,7 @@ HINDI_STOP = set("""
 पिन मोबाइल महिला पुरुष पास पीछे सामने मंदिर मस्जिद गुरुद्वारे गुरुद्वारा भवन पंचायत स्कूल टंकी पानी बाज़ार बाजार
 कॉलोनी नगर बस्ती चौक मोहल्ला मुहल्ला वार्ड गली सड़क रोड मार्ग कोतवाली काली माता हनुमान शिव जामा प्राथमिक विद्यालय दवा दवाई गोली दर्द पेट सिर खांसी
 उल्टी दस्त कमजोरी सांस रोज़ रोज सुबह शाम रात दोपहर खाना बाद पहले साथ लिए लिया दिया गया गई हुआ हुई था थी थे
-कर करें करना रहा रही रहे जांच रिपोर्ट अस्पताल डॉक्टर डॉ नर्स वार्ड बिस्तर भर्ती छुट्टी निदान इलाज सलाह समीक्षा
+कर करें करना रहा रही रहे आई आया आए आये गई गया गए बोला बोली बताया बताई कहा जांच रिपोर्ट अस्पताल डॉक्टर डॉ नर्स वार्ड बिस्तर भर्ती छुट्टी निदान इलाज सलाह समीक्षा
 उपचार हफ्ते सप्ताह महीने महीना साल एक दो तीन चार पांच छह सात आठ नौ दस बार भी नहीं हाँ जी श्री श्रीमती कुमारी
 पुत्र पुत्री पत्नी पति सुपुत्र बेटा बेटी लिंग उम्र जन्म तिथि पिता पति का रजिस्ट्रेशन पंजीकरण संख्या नंबर फ़ोन फोन
 """.split())
@@ -137,7 +137,7 @@ RE_INSURANCE = re.compile(
 RE_MRN = re.compile(
     r"(?<![a-z0-9])(?:[a-z]{1,6}[\-/ ]?)?(?:\d{2,4}[\-/])?\d{4,8}(?:[\-/]\d{2,8})?(?![a-z0-9])"
 )
-RE_MRN_ALNUM = re.compile(r"(?<![a-z0-9])[a-z]{2,6}[\-/]?\d{2,4}[\-/]\d{3,8}(?![a-z0-9])|(?<![a-z0-9])[a-z]{2,6}\d{5,8}(?![a-z0-9])|(?<![a-z0-9])[a-z]{2,6}[\-/]\d{4,8}(?![a-z0-9])|(?<![a-z0-9])[a-z]{2,5}\d{4}[\-/]\d{4,8}(?![a-z0-9])|(?<![a-z0-9])[a-z]{2,5}[\-/][a-z]{2,4}[\-/]\d{4,8}(?![a-z0-9])")
+RE_MRN_ALNUM = re.compile(r"(?<![a-z0-9])[a-z]{2,6}[\-/.:]?\d{2,4}[\-/.:]\d{3,8}(?![a-z0-9])|(?<![a-z0-9])[a-z]{2,6}\d{5,8}(?![a-z0-9])|(?<![a-z0-9])[a-z]{2,6}[\-/]\d{4,8}(?![a-z0-9])|(?<![a-z0-9])[a-z]{2,5}\d{4}[\-/]\d{4,8}(?![a-z0-9])|(?<![a-z0-9])[a-z]{2,5}[\-/][a-z]{2,4}[\-/]\d{4,8}(?![a-z0-9])")
 # prefixes that are NOT personal identifiers (visit / bill / sample / trip / ticket / lab codes)
 NON_ID_PREFIXES = {
     "opd", "bl", "bill", "s", "amb", "hd", "loinc", "icd", "sg", "mg", "se", "sn", "pkg", "lot", "batch",
@@ -182,7 +182,8 @@ PATIENT_ROLE_WORD = re.compile(r"(?<![a-z])(patient|pt|beneficiary|insured|membe
 REL_ROLE_WORD = re.compile(r"(?<![a-z])(attendant|relative|guardian|abhibhavak|अभिभावक|परिजन|parijan|kin|nok|husband|wife|father|mother|son|daughter|spouse|parent|nominee|emergency|contact person|escort|bystander|pati|patni|pita|mata)(?![a-z])")
 ROLE_WORD = re.compile(PATIENT_ROLE_WORD.pattern + "|" + REL_ROLE_WORD.pattern + r"|(?<![a-z])(contact|informant|caller|witness|donor|recipient|visitor|referred by patient)(?![a-z])")
 CLINICAL_LABEL = re.compile(r"(?<![a-z])(diagnosis|advice|adv|rx|complaint|complaints|c/o|history|h/o|k/c/o|ward|bed|consultant|doctor|dr|surgeon|department|dept|test|result|investigation|impression|plan|procedure|medication|medicine|drug|dose|frequency|vitals|bp|pulse|temp|spo2|weight|height|bmi|remarks?|notes?|course|treatment|status|hospital|unit|specimen|sample|lab|room|date|time|age|sex|gender|address|village|district|tehsil|state|pin|mobile|phone|email|uhid|mrn|id|no|number)(?![a-z])")
-ROLE_NOUN = re.compile(r"(?<![A-Za-z])(?:patient|pt\.?|mareez|mariz|rogi|beneficiary)\s+(?=[A-Z])|(?:मरीज़|मरीज|रोगी)\s+(?=[\u0900-\u097F])")
+ROLE_NOUN = re.compile(r"(?<![A-Za-z])(?i:patient|pt\.?|mareez|mariz|rogi|beneficiary|visitor|neighbou?r|caretaker|attendant|escort|bystander)\s+(?=[A-Z])"
+                       r"|(?:मरीज़|मरीज|रोगी|पड़ोसी|पड़ोसन|परिजन|रिश्तेदार|परिचारक|मित्र|सहेली|दोस्त)\s+(?=[\u0900-\u097F])")
 AGE_SEX_BRACKET = re.compile(r"\(\s*(?:[MF]\s*/\s*\d{1,3}|\d{1,3}\s*(?:Y|Yrs?|years?)?\s*/\s*[MF])\s*\)")
 SUBJ_VERB = re.compile(r"(?:^|(?<=[.;!\n]\s)|(?<=^\s))([A-Z][a-z]{2,})\s+(?:called|phoned|rang|came|visited|paid|signed|informed|counselled|enquired|requested|refused|consented|agreed|left|brought)\b", re.M)
 OBJ_VERB = re.compile(r"(?i:\b(?:told|informed|called|phoned|counselled|counseled|asked|briefed|advised|explained\s+to))\s+(?=[A-Z])")
@@ -571,7 +572,8 @@ class Detector:
         from .namemodel import is_name as _is_name
         for m in ROLE_NOUN.finditer(t):
             s0, e0, toks = _name_run(t, m.end(), max_tokens=3)
-            if toks and all(gz.is_known_name_token(x) or _is_name(x) for x in toks):
+            strong = not re.match(r"(?i)(?:patient|pt|mareez|mariz|rogi|beneficiary|मरीज़|मरीज|रोगी)", m.group(0))
+            if toks and (strong or all(gz.is_known_name_token(x) or _is_name(x) for x in toks)):
                 spans.append(Span(s0, e0, "NAME", role="patient", value=" ".join(toks), meta={"src": "role-noun"}))
         # communication verbs: "<Name> called/phoned/visited ...", "told/informed <Name>"
         from .namemodel import is_name
@@ -696,11 +698,17 @@ class Detector:
                 st = m.start(1) + m.group(1).find(words[0])
                 spans.append(Span(st, m.end(1), "NAME", role="other", value=" ".join(words), meta={"src": "deva-phone"}))
         # "<Name> (attendant, bed 12)"
-        for m in re.finditer(r"\(\s*(?:attendant|relative|husband|wife|son|daughter|father|mother|guardian|visitor|caller)", t, flags=re.I):
-            left = t[:m.start()].rstrip()
+        for m in re.finditer(r"\(\s*(?:attendant|relative|husband|wife|son|daughter|father|mother|guardian|visitor|caller|neighbou?r|friend|colleague|caretaker|employer|landlord|brother|sister|uncle|aunt|cousin|nephew|niece|grand(?:son|daughter|father|mother)|in-law)", t, flags=re.I):
+            left = t[max(0, m.start() - 80):m.start()].rstrip()
+            base = max(0, m.start() - 80)
             mm = re.search(r"((?:[A-Z][a-z]+\.?\s+){0,3}[A-Z][a-z]+)$", left)
-            if mm and all(is_name_token(x) for x in mm.group(1).split()):
-                spans.append(Span(mm.start(1), mm.end(1), "NAME", role="relative", value=mm.group(1), meta={"src": "role"}))
+            if mm:
+                words = mm.group(1).split()
+                while words and not is_name_token(words[0].rstrip(".")):
+                    words.pop(0)              # "Visitor Tsungmerenla Imchen (neighbour)": drop the role word
+                if words and all(is_name_token(x.rstrip(".")) for x in words):
+                    st = base + mm.end(1) - len(" ".join(words))
+                    spans.append(Span(st, base + mm.end(1), "NAME", role="relative", value=" ".join(words), meta={"src": "role"}))
         # chat sender "[30/05/26, 9:32 pm] Kamal Bhaiya:"
         for m in CHAT_SENDER.finditer(t):
             name = m.group(1).strip()

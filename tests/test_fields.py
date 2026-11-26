@@ -41,7 +41,11 @@ VALUE_CASES = [  # (values, key, ancestors, expected sem) for columns whose NAME
 
 
 def main():
-    from wards.fields import value_type
+    from wards.fields import value_type, classify_json, OTHER_PERSON_IF_NAMED
+    for key in ("exported_by", "verified_by", "createdBy"):
+        if classify_json(key, ["_export_meta"]) != OTHER_PERSON_IF_NAMED:
+            print(f"{key}: not treated as a possible person")
+            return 1
     fails = 0
     n = 0
     for vals, key, anc, want in VALUE_CASES:

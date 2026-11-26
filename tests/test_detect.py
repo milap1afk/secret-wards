@@ -195,6 +195,11 @@ CASES = [
  ("Contact Ms. Pooja (PRO) at 0522-4012345 for records", [], []),
  ("{\"name\": \"Tsering Dolma\", \"relation\": \"self\", \"ph\": \"9612345678\"}", ["Tsering Dolma", "9612345678"], []),
  ("Lalthanpuii-ka sugar control mein hai", ["Lalthanpuii"], []),
+    # --- mechanisms exposed by blind holdout 2 (written as new, unseen strings)
+    ("Visitor Phurba Lhamu Sherpa (neighbour) asked about bed no.", ["Phurba Lhamu Sherpa"], []),
+    ("मरीज़ के साथ पड़ोसन रेबिका लिंगदोह आई थी", ["रेबिका लिंगदोह"], []),
+    ("Neighbour said fever started 3 days ago", [], ["fever started"]),
+    ("discharge summary JIP.27.00311 filed; ref XK.28.00412", ["JIP.27.00311", "XK.28.00412"], []),
     # --- canary-style names with role context only
     ("Consent witnessed by Tsering Wangmo, phone 8010993510.", ["Tsering Wangmo", "8010993510"], []),
     ("called by Kaveri Nambiar 94054-71434", ["Kaveri Nambiar", "94054-71434"], []),

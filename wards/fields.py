@@ -116,6 +116,8 @@ def _norm_key(k: str) -> str:
 def classify_json(key: str, ancestors: list, resource_type: str = "") -> str:
     """Semantic of a JSON leaf. ancestors: list of keys from root to parent (strings)."""
     k = _norm_key(key)
+    if re.fullmatch(r"[a-z]+_?by", k) and k not in ("standby", "nearby", "hereby", "lobby", "hobby", "baby"):
+        return OTHER_PERSON_IF_NAMED    # exported_by, verified_by, created_by: a person when the value is a name
     anc = [_norm_key(a) for a in ancestors if isinstance(a, str)]
     rt = resource_type.lower()
     if k not in _NAMEISH_KEYS and (k.endswith("_name") or k.endswith("name")):
@@ -188,6 +190,7 @@ def classify_json(key: str, ancestors: list, resource_type: str = "") -> str:
 
 
 NAME_UNKNOWN = "name_unknown"
+OTHER_PERSON_IF_NAMED = "other_person_if_named"
 
 
 # ---------------------------------------------------------------- content-based typing

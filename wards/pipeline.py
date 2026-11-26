@@ -1189,7 +1189,7 @@ class Pipeline:
         if sem == F.OTHER_PERSON:
             self._count("NAME")
             return "[NAME]"
-        if sem == F.NAME_UNKNOWN:
+        if sem in (F.NAME_UNKNOWN, F.OTHER_PERSON_IF_NAMED):
             if _looks_like_person(s):
                 self._count("NAME")
                 return "[NAME]"
