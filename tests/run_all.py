@@ -6,7 +6,8 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-SUITES = ["test_detect", "test_fields", "test_shapes", "test_fhir_ids", "test_fhir_valid", "test_secret", "test_attack_checks"]
+# every tests/test_*.py, so a new suite can never be left out by accident
+SUITES = sorted(p.stem for p in HERE.glob("test_*.py"))
 
 
 def main():

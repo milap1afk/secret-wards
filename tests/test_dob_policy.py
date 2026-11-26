@@ -40,8 +40,9 @@ def main():
             fails.append("FHIR birthDate not removed")
         if check_bundle(b):
             fails.append(f"FHIR invalid: {check_bundle(b)}")
-        if not re.search(r"\b4\d-4\d\b|40-49", blob):
-            fails.append("age band missing")
+        bands = [(int(a), int(b)) for a, b in re.findall(r"\b(\d{1,2})-(\d{1,3})\b", blob)]
+        if not any(lo <= 48 <= hi and hi - lo >= 4 for lo, hi in bands):
+            fails.append("no age band containing the true age 48")
     for f in fails:
         print("FAIL", f)
     print(f"dob policy test: {len(fails)} failures")
