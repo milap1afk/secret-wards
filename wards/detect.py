@@ -54,7 +54,7 @@ def resolve(spans: list) -> list:
     """Greedy non-overlapping selection by priority then length, O(n log n): accepted intervals are kept
     sorted and disjoint, so each candidate only needs its two neighbours checked."""
     import bisect
-    ordered = sorted(spans, key=lambda s: (-PRIORITY.get(s.kind, 0), -s.length, s.start))
+    ordered = sorted(spans, key=lambda s: (-(s.meta.get("prio") or PRIORITY.get(s.kind, 0)), -s.length, s.start))
     starts: list = []
     ends: list = []
     taken: list = []
@@ -235,6 +235,11 @@ EPONYM_RE = re.compile(r"(?i)\b(?-i:(?:[A-Z][a-z]+[\s\-]+){0,2})[A-Z][a-z]+(?:'s
 # a brand or generic drug written straight before its dose ("Syndopa 110 mg", "Telma 40 mg"): medicine, not a name
 DRUG_DOSE = re.compile(r"\b[A-Z][A-Za-z]+(?:[\-\s][A-Z0-9][A-Za-z0-9]*)?\s+\d+(?:\.\d+)?(?:\s*/\s*\d+(?:\.\d+)?)?\s*"
                        r"(?:mg|mcg|µg|ug|gm|g|ml|mL|IU|iu|units?|U)\b(?!\s*/\s*(?:dL|L|kg|min|hr)\b)")
+# the word for "name" in other Indian scripts, then the value in that script (up to 4 words)
+_OS = {"\u0980-\u09FF": "নাম", "\u0A00-\u0A7F": "ਨਾਮ|ਨਾਂ", "\u0A80-\u0AFF": "નામ", "\u0B00-\u0B7F": "ନାମ",
+       "\u0B80-\u0BFF": "பெயர்", "\u0C00-\u0C7F": "పేరు", "\u0C80-\u0CFF": "ಹೆಸರು", "\u0D00-\u0D7F": "പേര്"}
+OTHER_SCRIPT_NAME = re.compile("|".join(
+    rf"(?:{w})[{r}]*\s*[:\-–]\s*((?:[{r}]+[ \t]+){{0,3}}[{r}]+)" for r, w in _OS.items()))
 # salutations: "Dear Mr. Harish", "प्रिय सीमा", "आदरणीय श्री ..."
 SALUTATION = re.compile(r"(?:\bDear|प्रिय|आदरणीय)\s+")
 SALUTATION_NOT_NAME = re.compile(r"(?i)(?:sir|madam|ma'?am|doctor|dr|team|colleague|all|patient|parents?|customer|member|friends?|"
@@ -249,6 +254,10 @@ LOCALITY_RE = re.compile(
     r"(?:(?i:mohalla|mohallah|muhalla|mohala|mohalla:|locality|colony|sector|ward\s*no\.?|ward)\s*[:\-]?\s*(?:\d{1,3}\b|(?:[A-Z][a-z]+\s*){1,3}))"
     r"|(?:मोहल्ला|मुहल्ला|वार्ड)\s*(?:नं\.?\s*)?(?:\d{1,3}|[\u0900-\u097F]+(?:\s+[\u0900-\u097F]+){0,2})"
 )
+# "<Shastri> Nagar", "<Sunshine> Apartments": a sub-district locality named by its suffix (used in address context)
+LOCALITY_SUFFIX_RE = re.compile(r"\b(?:[A-Z][a-z]+\s+){1,3}(?:Nagar|Colony|Vihar|Enclave|Puram|Bagh|Ganj|Pura|Apartments?|"
+                                r"Residency|Society|Heights|Towers?|Complex|Basti|Layout|Extension|Kunj|Niwas|Sadan|Market|"
+                                r"Lines|Town|Chowk|Mohalla|Tola|Khera|Patti)\b")
 LANDMARK_RE = re.compile(
     r"(?:(?i:near|opp\.?|opposite|behind|beside|next\s+to|in\s+front\s+of|close\s+to|nr\.?)\s+(?:the\s+)?(?:[A-Z][a-z]+\.?\s*){1,4})"
     r"|(?:[\u0900-\u097F]+\s+){1,3}(?:के|की)\s+(?:पास|पीछे|सामने|बगल\s+में|नज़दीक|निकट)"
@@ -429,6 +438,7 @@ class Detector:
         self._labels(text, f, spans)
         self._relations(text, f, spans)
         self._generic_labels(text, f, spans)
+        self._other_script_names(text, spans)
         self._generic_ids(text, f, spans)
         self._honorifics(text, f, spans)
         self._verbs(text, f, spans)
@@ -564,6 +574,12 @@ class Detector:
             s, e, toks = _name_run(t, m.end(), max_tokens=3)
             if toks:
                 spans.append(Span(s, e, "VILLAGE", value=" ".join(toks)))
+
+    def _other_script_names(self, t, spans):
+        """'<name-word>: <run>' in Bengali, Gurmukhi, Gujarati, Odia, Tamil, Telugu, Kannada, Malayalam."""
+        for m in OTHER_SCRIPT_NAME.finditer(t):
+            g = next(i for i in range(1, len(m.groups()) + 1) if m.group(i))
+            spans.append(Span(m.start(g), m.end(g), "NAME", role="", value=m.group(g), meta={"src": "label"}))
 
     def _generic_labels(self, t, f, spans):
         """'<short label><sep><name-shaped run>' where the label holds a name or person-role word."""
@@ -804,6 +820,17 @@ class Detector:
                 if not addr_ctx or re.match(r"\s*[\(/]", tail):
                     continue
             spans.append(Span(m.start(), m.end(), "LOCALITY", value=s.strip()))
+        if addr_ctx:
+            for m in LOCALITY_SUFFIX_RE.finditer(t):
+                words = m.group(0).split()
+                while len(words) > 2 and re.fullmatch(r"(?i)distt?|district|vill(?:age)?|tehsil|post|po|thana|block|near|opp|behind", words[0]):
+                    words.pop(0)            # "Distt Ambedkar Nagar": the label word is not part of the place
+                val = " ".join(words)
+                if val.lower() in gz.DISTRICTS or re.match(r"(?i)(?:dr|doctor|hospital|distt?|district)\b", val):
+                    continue
+                st = m.end() - len(val)
+                # a locality outranks a name found inside it ("Rajendra Nagar" is a place, not Rajendra)
+                spans.append(Span(st, m.end(), "LOCALITY", value=val, meta={"prio": PRIORITY["NAME"] + 1}))
         for m in LANDMARK_RE.finditer(t):
             if not addr_ctx and not re.search(r"(?i)mandir|masjid|school|tanki|bhawan|gurudwara|church|chowk|temple|पास|पीछे|सामने", m.group(0)):
                 continue

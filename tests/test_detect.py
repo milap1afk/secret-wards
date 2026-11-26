@@ -249,6 +249,15 @@ CASES = [
  ("Patient Name : SUNIL KUMAR S", ["SUNIL KUMAR"], []),
  ("VID: 9182 7364 5546 1029", ["9182 7364 5546 1029"], []),
  ("mail: ramesh.k[at]gmail[dot]com", ["ramesh.k[at]gmail[dot]com"], []),
+ # round 8: name labels in other Indian scripts; localities named by suffix inside an address
+ ("রোগীর নাম: অনিমা ঘোষ", ["অনিমা ঘোষ"], []),
+ ("નામ - ભાવેશ શાહ", ["ભાવેશ શાહ"], []),
+ ("பெயர்: செல்வி", ["செல்வி"], []),
+ ("పేరు: లక్ష్మి", ["లక్ష్మి"], []),
+ ("Address: 14, Rajendra Nagar, Bareilly", ["Rajendra Nagar"], ["Bareilly"]),
+ ("Address: B-7 Green Park Apartments, Noida", ["Green Park Apartments"], []),
+ ("Address: Vill. Hasanpur, Distt Ambedkar Nagar", ["Hasanpur"], ["Ambedkar Nagar"]),
+ ("Seen in Medicine OPD, Gandhi Nagar branch? no", [], []),
  # round 7: numbered and plural labels with name lists, drug before dose, multi-word eponyms, salutations
  ("Witness 2: Gurnam", ["Gurnam"], []),
  ("Attendants: Chintu, Golu and Monu", ["Chintu", "Golu", "Monu"], []),
