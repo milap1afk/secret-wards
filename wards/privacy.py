@@ -154,7 +154,7 @@ def parse_text_date(s: str, ref_year: int):
     if m and m.group(2) in _MON_IDX:
         d = _mk(int(m.group(3)), _MON_IDX[m.group(2)], int(m.group(1)))
         return (d, {"style": "hindi"}) if d else None
-    m = re.match(r"(?i)^\s*(\d{1,2})(st|nd|rd|th)?\s+([a-z]+)\.?(,?)(?:\s+(\d{4}))?\s*$", s)
+    m = re.match(r"(?i)^\s*(\d{1,2})(st|nd|rd|th)?\s+(?:of\s+)?([a-z]+)\.?(,?)(?:\s+(\d{4}))?\s*$", s)
     if m:
         mon = _MON_IDX.get(m.group(3).lower()[:4].rstrip(".")) or _MON_IDX.get(m.group(3).lower()[:3])
         if not mon:
@@ -181,6 +181,10 @@ def format_date(d: dt.date, info: dict) -> str:
     st = info["style"]
     if st == "num":
         return format_num_date(d, info)
+    if st == "roman":
+        inv = {v: k for k, v in _ROMAN.items()}
+        y = f"{d.year % 100:02d}" if info["y2"] else str(d.year)
+        return f"{d.day:02d}{info['sep']}{inv[d.month]}{info['sep']}{y}"
     if st == "compact":
         return f"{d.year:04d}{d.month:02d}{d.day:02d}"
     if st == "hindi":
@@ -199,7 +203,11 @@ def format_date(d: dt.date, info: dict) -> str:
     if info.get("abbr"):
         mon = mon[:3]
     if st == "text":
-        out = f"{d.day}{info.get('suffix', '')} {mon}"
+        suf = info.get("suffix", "")
+        if suf:                     # the ordinal must match the NEW day: 3rd -> 2nd, not 2rd
+            suf = "th" if 11 <= d.day % 100 <= 13 else {1: "st", 2: "nd", 3: "rd"}.get(d.day % 10, "th")
+            suf = suf.upper() if info.get("suffix", "").isupper() else suf
+        out = f"{d.day}{suf} {mon}"
         if info.get("has_year"):
             out += f"{info.get('comma', '')} {d.year}"
         return out
@@ -231,6 +239,18 @@ def parse_ymd(s: str):
     return (d, {"style": "ymd", "sep": m.group(2)}) if d else None
 
 
+_ROMAN = {"I": 1, "II": 2, "III": 3, "IV": 4, "V": 5, "VI": 6, "VII": 7, "VIII": 8, "IX": 9, "X": 10, "XI": 11, "XII": 12}
+
+
+def parse_roman(s: str):
+    m = re.match(r"^\s*(\d{1,2})([./\- ])(XII|XI|X|IX|VIII|VII|VI|V|IV|III|II|I)\2(\d{4}|\d{2})\s*$", s)
+    if not m:
+        return None
+    y = int(m.group(4)) if len(m.group(4)) == 4 else 2000 + int(m.group(4))
+    d = _mk(y, _ROMAN[m.group(3)], int(m.group(1)))
+    return (d, {"style": "roman", "sep": m.group(2), "y2": len(m.group(4)) == 2}) if d else None
+
+
 def parse_compact(s: str):
     m = re.match(r"^\s*((?:19|20)\d{2})(\d{2})(\d{2})\s*$", s)
     if not m:
@@ -241,7 +261,7 @@ def parse_compact(s: str):
 
 def parse_any_date(s: str, order: str, ref_year: int = 2026):
     s2 = s.strip()
-    r = parse_compact(s2)
+    r = parse_compact(s2) or parse_roman(s2)
     if r:
         return r
     for fn in (parse_mon_date, parse_ymd):

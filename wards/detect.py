@@ -186,10 +186,11 @@ ROLE_NOUN = re.compile(r"(?<![A-Za-z])(?:patient|pt\.?|mareez|mariz|rogi|benefic
 AGE_SEX_BRACKET = re.compile(r"\(\s*(?:[MF]\s*/\s*\d{1,3}|\d{1,3}\s*(?:Y|Yrs?|years?)?\s*/\s*[MF])\s*\)")
 SUBJ_VERB = re.compile(r"(?:^|(?<=[.;!\n]\s)|(?<=^\s))([A-Z][a-z]{2,})\s+(?:called|phoned|rang|came|visited|paid|signed|informed|counselled|enquired|requested|refused|consented|agreed|left|brought)\b", re.M)
 OBJ_VERB = re.compile(r"(?i:\b(?:told|informed|called|phoned|counselled|counseled|asked|briefed|advised|explained\s+to))\s+(?=[A-Z])")
-GENERIC_ID_LABEL = re.compile(r"(?i)(?<![a-z])((?:[a-z][a-z.]{0,12}\s){0,2}[a-z][a-z.]{0,12})\s*(?:no\.?|number|num|id|#|code|card)\s*[:#\-–=]?\s*")
+GENERIC_ID_LABEL = re.compile(r"(?i)(?<![a-z])((?:[a-z][a-z.]{0,12}\s){0,2}[a-z][a-z.]{0,12})\s*(?:no\.?|number|num|id|#|code|card|policy|ref\.?|reference|account|a/c)(?![a-z])\s*[:#\-–=]?\s*")
 NON_ID_LABEL = re.compile(r"(?i)(?<![a-z])(opd|visit|bill|invoice|receipt|sample|lab|test|batch|lot|package|pkg|loinc|icd|snomed|trip|ticket|order|bed|ward|room|unit|page|ref\.?\s*range|phone|mobile|mob|contact|cell|tel|pin|zip|postal|house|h|gali|plot|flat|serial|sr|s|sl)$")
 PLACE_MARKER_ANY = re.compile(r"(?<![A-Za-z])(?:Gram\s+Panchayat|Panchayat|Thana|Native\s+of|[Rr]\s*/\s*[Oo]|ग्राम\s+पंचायत|थाना|निवासी)\s*[:\-]?\s*(?=[A-Z\u0900-\u097F])")
-PLACE_MARKER_ADDR = re.compile(r"(?<![A-Za-z])(?:P\.?\s?O\.?|Post|P\.?\s?S\.?|Block|Tola|Purwa|Nagla|Majra|डाकघर|पोस्ट|ब्लॉक|टोला|पुरवा|नगला|मजरा)\s*[:\-]?\s+(?=[A-Z\u0900-\u097F])")
+PLACE_MARKER_ADDR = re.compile(r"(?<![A-Za-z\u0900-\u097F])(?:P\.?\s?O\.?|Post|P\.?\s?S\.?|Block|Tola|Purwa|Nagla|Majra|डाकघर|पोस्ट|पो\.|ब्लॉक|टोला|पुरवा|नगला|मजरा)\s*[:\-]?\s*(?=[A-Z\u0900-\u097F])")
+HINDI_FUNC = {"के", "की", "का", "को", "में", "से", "है", "हैं", "पर", "और", "ने", "था", "थी", "जिला", "तहसील", "पिन"}
 GALI_RE = re.compile(r"(?i)(?<![a-z])gali\s*(?:no\.?|number)?\s*\d{1,4}|गली\s*(?:नं\.?|नंबर)?\s*\d{1,4}")
 ROLE_AFTER = re.compile(r"(?i)^\s*\((attendant|relative|husband|wife|son|daughter|father|mother|brother|sister|guardian|visitor|caller|patient)")
 CHAT_SENDER = re.compile(r"^\[[^\]]{4,40}\]\s*([^:\n]{2,40}):", re.M)
@@ -237,7 +238,8 @@ MONTH_ABBR["sept"] = 9
 _MON = r"(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sept?(?:ember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)"
 RE_ISO = re.compile(r"(?<![\d])(\d{4})-(\d{2})-(\d{2})(T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+\-]\d{2}:?\d{2})?)?(?![\d])")
 RE_NUMDATE = re.compile(r"(?<![\d/.\-])(\d{1,2})([/.\-])(\d{1,2})\2(\d{4}|\d{2})(?![\d])")
-RE_TEXTDATE = re.compile(r"(?i)(?<![a-z\d])(\d{1,2})(?:st|nd|rd|th)?\s+(" + _MON + r")\.?,?(?:\s+(\d{4}))?(?![a-z])")
+RE_TEXTDATE = re.compile(r"(?i)(?<![a-z\d])(\d{1,2})(?:st|nd|rd|th)?\s+(?:of\s+)?(" + _MON + r")\.?,?(?:\s+(\d{4}))?(?![a-z])")
+RE_ROMANDATE = re.compile(r"(?<![\w])(\d{1,2})[./\- ](XII|XI|X|IX|VIII|VII|VI|V|IV|III|II|I)[./\- ](\d{4}|\d{2})(?![\w])")
 RE_MONDATE = re.compile(r"(?i)(?<![a-z\d])(\d{1,2})[\-/ ](" + _MON + r")[\-/ ,]+(\d{4}|\d{2})(?![\d])")
 RE_YMD = re.compile(r"(?<![\d])(\d{4})[/.](\d{1,2})[/.](\d{1,2})(?![\d])")
 RE_HINDIDATE = re.compile(r"(?<![\d])(\d{1,2})\s+(जनवरी|फ़रवरी|फरवरी|मार्च|अप्रैल|अप्रेल|मई|जून|जुलाई|अगस्त|सितंबर|सितम्बर|अक्टूबर|अक्तूबर|नवंबर|नवम्बर|दिसंबर|दिसम्बर)\s+(\d{4})(?![\d])")
@@ -374,7 +376,7 @@ def _place_run(text: str, pos: int) -> tuple:
         return pos, pos, []
     words = []
     for w in m.group(2).split():
-        if w.lower() in gz.NON_NAME_WORDS - VILLAGE_OK or w in HINDI_STOP:
+        if w.lower() in gz.NON_NAME_WORDS - VILLAGE_OK or w in HINDI_FUNC:
             break
         words.append(w)
     if not words:
@@ -404,7 +406,8 @@ class Detector:
         self._generic_ids(text, f, spans)
         self._honorifics(text, f, spans)
         self._verbs(text, f, spans)
-        addr = address_ctx or bool(ADDR_LABELS.search(text)) or bool(re.search(r"(?i)\btehsil\b|\bdistt?\b|तहसील|जिला", text))
+        addr = address_ctx or bool(ADDR_LABELS.search(text)) or bool(re.search(
+            r"(?i)\btehsil\b|\bdistt?\b|\bvill\b|\bp\.o\.|\bthana\b|\bblock\b|तहसील|जिला|ग्राम|पोस्ट|पो\.|थाना|ब्लॉक", text))
         self._address(text, f, spans, addr)
         self._lexicon(text, f, spans)
         self._gazetteer(text, f, spans)
@@ -557,6 +560,13 @@ class Detector:
                     st = m.start() - len(left) + mm.start(1) + off
                     spans.append(Span(st, m.start() - len(left) + mm.end(1), "NAME", role="patient",
                                       value=" ".join(words), meta={"src": "age-bracket"}))
+        # JSON-shaped text inside a note or log: "name": "Tsering Dolma"
+        for m in re.finditer(r"[\"']([A-Za-z_ ]{2,30})[\"']\s*:\s*[\"']", t):
+            low = m.group(1).lower().replace("_", " ")
+            if (NAME_WORD.search(low) or ROLE_WORD.search(low)) and not CLINICAL_LABEL.search(low.replace("name", "")):
+                s0, e0, toks = _name_run(t, m.end(), allow_lower=True, max_tokens=4)
+                if toks:
+                    spans.append(Span(s0, e0, "NAME", role="", value=" ".join(toks), meta={"src": "label"}))
         # role noun directly before a name: "patient Selvi informed", "मरीज़ श्यामलाल को बुखार"
         from .namemodel import is_name as _is_name
         for m in ROLE_NOUN.finditer(t):
@@ -580,7 +590,7 @@ class Detector:
             head = m.group(1).lower()
             if NON_ID_LABEL.search(head):
                 continue
-            vm = re.compile(r"[A-Za-z0-9][A-Za-z0-9/\-]{3,30}").match(t, m.end())
+            vm = re.compile(r"(?:[A-Za-z]{1,3} (?=\d))?[A-Za-z0-9][A-Za-z0-9/\-]{3,30}").match(t, m.end())
             if not vm:
                 continue
             val = vm.group(0).rstrip("-/")
@@ -663,7 +673,7 @@ class Detector:
                 if not re.search(r"(?i)\b(?:dr|doctor)\.?\s*$", t[max(0, m.start(1) - 5):m.start(1)]):
                     spans.append(Span(m.start(1), m.end(1), "NAME", value=m.group(1), meta={"src": "possessive"}))
         # possessive anywhere before a clinical/state noun: "Nankau ki tabiyat", "Sunita ka sugar"
-        for m in re.finditer(r"(?<![A-Za-z])((?:[A-Z][a-z]+\s+){0,1}[A-Z][a-z]{2,})\s+(?:ka|ki|ke)\s+(?i:tabiyat|tabiyet|tabeeyat|haalat|halat|bp|sugar|bukhar|pet|sar|report|dawai|dawa|ilaj|ilaaj|operation|condition|khana|neend|pulse|temp)\b", t):
+        for m in re.finditer(r"(?<![A-Za-z])((?:[A-Z][a-z]+\s+){0,1}[A-Z][a-z]{2,})[\s\-]+(?:ka|ki|ke)\s+(?i:tabiyat|tabiyet|tabeeyat|haalat|halat|bp|sugar|bukhar|pet|sar|report|dawai|dawa|ilaj|ilaaj|operation|condition|khana|neend|pulse|temp)\b", t):
             words = m.group(1).split()
             if all(is_name_token(w) for w in words) and words[0][0].isupper():
                 if not re.search(r"(?i)\b(?:dr|doctor)\.?\s*$", t[max(0, m.start(1) - 5):m.start(1)]):
@@ -858,6 +868,8 @@ class Detector:
             spans.append(Span(m.start(), m.end(), "DATE", value=m.group(0), meta={"fmt": "num"}))
         for m in RE_TEXTDATE.finditer(f):
             spans.append(Span(m.start(), m.end(), "DATE", value=m.group(0), meta={"fmt": "text"}))
+        for m in RE_ROMANDATE.finditer(t):
+            spans.append(Span(m.start(), m.end(), "DATE", value=m.group(0), meta={"fmt": "roman"}))
         for m in RE_COMPACT.finditer(f):
             spans.append(Span(m.start(), m.end(), "DATE", value=m.group(0), meta={"fmt": "compact"}))
         for m in RE_HINDIDATE.finditer(f):
@@ -886,6 +898,9 @@ def _id_core(s: str) -> str:
 
 
 def _match_date_at(t: str, f: str, pos: int):
+    m = RE_ROMANDATE.match(t, pos)
+    if m:
+        return (m.start(), m.end(), m.group(0), {"fmt": "roman"})
     for rx, fmt in ((RE_ISO, "iso"), (RE_NUMDATE, "num"), (RE_HINDIDATE, "hindi"), (RE_MONDATE, "mon"), (RE_YMD, "ymd"), (RE_TEXTDATE, "text")):
         m = rx.match(f, pos)
         if m:

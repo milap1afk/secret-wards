@@ -20,6 +20,7 @@ CASES = [
     ("aged 52 years, 52 वर्षीय", ["aged 52", "52 वर्षीय"], []),
     ("Address: Mohalla Qazipura, PO Itaunja, Distt Lucknow 226203", ["226203", "Itaunja"], ["226***", "Lucknow"]),
     ("discharged 20260219.", ["20260219"], []),
+    ("seen on 3rd of March 2026 and 03.III.2026", ["3rd of March 2026", "03.III.2026"], ["seen on"]),
     ("Ref 202602190045 sample", [], ["Ref", "sample"]),       # a 12-digit reference is an ID: removing it is right
     ("DM2 x 8 yrs, H/O TB 2 yrs back, fever for 8 days, HTN since 10 years, Tab Metformin 500 mg 1-0-1 x 5 days",
      [], ["x 8 yrs", "2 yrs back", "for 8 days", "since 10 years", "500 mg", "1-0-1", "x 5 days"]),
