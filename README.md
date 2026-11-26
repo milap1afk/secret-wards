@@ -102,8 +102,8 @@ never look like a PIN, phone or age.
 | Quasi-identifier | Treatment |
 |---|---|
 | dates | shifted by a secret **per-patient** offset (7–180 days) so every interval and stay length is exact |
-| age | 10-year band that always contains the true age; 85+ top-coded |
-| date of birth | birth year only |
+| age | 10-year band that always contains the true age; 85+ top-coded; 20-year band for patients unique on (band, sex, district, main diagnosis) |
+| date of birth | suppressed (a birth year would pin age to ±1 year) |
 | village, tehsil | generalised to district (district is kept for research) |
 | PIN | first 3 digits (`229***`) |
 | house, mohalla, landmark | removed |
@@ -134,80 +134,69 @@ working copy (the kit, its practice PDF, a local `.venv`) cannot make it pass by
 
 ## Measured results
 
-Every number below says what produced it. **Official** = the kit's own scripts (`check_dev.py`,
-`validate_output.py`, `check_submission.py`); those are practice self-checks, not the hidden-data evaluator.
-**Local** = our own approximations in `tools/` and `tests/`, written from the published `SCORING.md` and
-`ATTACKS.md`; they are guides, not official scores.
+**[O]** = the kit's own scripts (`check_dev.py`, `validate_output.py`, `check_submission.py`): practice
+self-checks, not the hidden-data evaluator. **[L]** = our local tools in `tools/` and `tests/`, written from
+the published `SCORING.md` / `ATTACKS.md`; guides, not official scores. Raw numbers:
+`docs/results/final_head.json` (this code) and `docs/results/final_start.json` (code before the last tuning
+round, scored with the same tools); the full official log is `docs/results/official_practice_checks.md`.
 
-| Measure | Practice data | Unseen-format variant¹ | Source |
+| Measure | Practice | Unseen-format variant¹ | Blind holdout² |
 |---|---|---|---|
-| contract | CONTRACT OK | CONTRACT OK | official `validate_output.py` |
-| personal data still visible | 0 / 3230 | 0 / 3230 | official `check_dev.py` |
-| leaked by script (Latin / Devanagari / Hinglish) | 0 % / 0 % / 0 % | 0 % / 0 % / 0 % | official `check_dev.py` |
-| canaries found | 0 / 4 | 0 / 4 | official `check_dev.py` |
-| medical values kept | 4855 / 4855 | 4855 / 4855 | official `check_dev.py` |
-| linking precision / recall / F0.5 | 1.00 / 1.00 / 1.00 | 1.00 / 1.00 / 1.00 | official `check_dev.py` |
-| raw copies of unsupported files | 0 | 0 | official `check_dev.py` |
-| same secret twice → identical; different secret → different; secret never written; input untouched | pass | – | official `check_submission.py --run` |
-| contextual precision (doctors, doses, C/O, eponyms…) | 1.000 | 1.000 | local `tools/score.py` |
-| token retention (over-redaction) | 0.986 | – | local `tools/retention.py` |
-| FHIR structure (ids, required elements, value sets, date/instant syntax, base64, references) | 19/19 bundles, 0 new issues | 19/19, 0 new issues | local `tools/fhir_check.py`² |
-| run time / peak memory | 2.4 s / 31 MB; 20× data 28 s / 330 MB | 2.4 s / 31 MB | `report.json`, `/usr/bin/time` |
+| contract [O] | CONTRACT OK | CONTRACT OK | CONTRACT OK |
+| personal data still visible [O] | 0 / 3230 | 0 / 3230 | 0 / 3273 (before: 46) |
+| canaries found [O] | 0 / 4 | 0 / 4 | 0 / 7 (before: 2) |
+| medical values kept [O] | 4855 / 4855 | 4855 / 4855 | 4855 / 4855 (before: 4669 / 4669) |
+| linking P / R / F0.5 [O] | 1.00 / 1.00 / 1.00 | 1.00 / 0.99 / 1.00 | 1.00 / 0.97 / 0.99 (before: 0.74 / 0.63 / 0.71) |
+| false merges [O] | 0 | 0 | 0 (before: 11) |
+| raw copies of unsupported files [O] | 0 | 0 | 0 |
+| A2/A3 · A4 · A5 risk vs raw [L] | 0.066 · 0.229 · 0.571 | 0.147 · 0.213 · 0.558 | 0.077 · 0.354 · 0.578 |
+| A1 · A6 · A7 [L] | 0 · 0 · 0.006 | 0 · 0 · 0.006 | 0 · 0 · 0 |
+| combined risk, SCORING.md weights [L] | 0.174 (before 0.342) | 0.184 (before 0.402) | 0.202 (before 0.425) |
+| FHIR R4: fhir.resources 6.5 and tools/fhir_check.py [L] | 19 / 19 valid | 19 / 19 | 19 / 19 |
+| run time / peak memory [L] | 2.8 s / 33 MB | 3.4 s / 32 MB | 3.1 s / 33 MB |
 
-² The kit ships no FHIR validator (the official one, `raksha_eval/scoring/fhir.py`, is not public), so FHIR
-validity is local only: `tools/fhir_check.py` reports 0 issues on the organisers' own input bundles (sanity)
-and `tests/test_fhir_valid.py` confirms it flags 10 kinds of breakage.
+Also measured [O]: `check_submission.py --run` on a clean clone prints READY TO SUBMIT (same secret →
+identical output, different secret → different output, secret never written, input untouched).
+[L]: contextual precision 1.000 and token retention 0.986 on practice; 100× practice (20,000 files) in 263 s
+at 0.95 GB peak, scaling exponent ≈ 1.04 (25× → 50×); six adversarial 5 MB single-line files in ≈ 70 s each;
+byte-identical output in Linux containers on Python 3.10 and 3.12 with no network, 2 CPUs, 4 GB, `LC_ALL=C`
+and a forced ASCII default encoding (`tools/run_in_container.sh`).
 
-¹ The unseen-format variant is built by `tools/chaos.py` from the practice data (the checkers are official,
-the dataset and its answer key are ours). It replaces all 115 Latin name tokens of patients and relatives with names absent from
-our gazetteer, writes the **same new names in Devanagari** wherever the original appeared in Devanagari
-(51 tokens, via a separate Latin→Devanagari transliterator in the test tool, not the sanitiser's), maps
-spelling variants (Harish/Hareesh) to one new name, renames headers, JSON keys and text labels, and changes
-ID and phone formats, and decodes, rewrites and re-encodes base64 payloads (FHIR attachments, scanned forms)
-so the base64 channel is genuinely tested. Limitations: names are drawn from one small pool; Hinglish word order, file layouts
-and date formats are not changed; the hidden data may vary things this variant does not.
+¹ `tools/chaos.py`: all 115 Latin and 51 Devanagari patient/relative name tokens replaced by unseen names
+written consistently in both scripts, base64 payloads rewritten, headers, keys, labels, ID and phone formats
+changed. The checkers are official; the dataset and its answer key are ours.
+² `tools/blind_variant.py`: written by a separate agent that read only the kit, never our code. New names in
+both scripts (incl. North-East, South and East Indian), new ID types (UPI, bank, DL, passport, voter ID,
+vehicle, ration card, employee ID), new phone/date formats, JSONL, top-level arrays, deep nesting, CSV
+preambles, pipe and fixed-width tables, mismatched extensions and 3 new canaries. Its unit locators for the
+new layouts are its own choice; the official convention for them is unknown.
 
-**Re-identification risk** (local `tools/attack.py`, an approximation of A1–A7 in `ATTACKS.md`; A2–A5 are
-relative to the same attack on raw data, combined with the `SCORING.md` weights):
+**Privacy choices, measured [L]** (`tools/attack.py`, `tools/kanon.py`, `docs/results/privacy_metrics.md`):
 
-| Attack | Practice data |
+| Change | Combined risk |
 |---|---|
-| A1 direct exposure (patients with a surviving direct identifier or full name) | 0.000 (raw 1.000) |
-| A2/A3 record linkage | 0.090 of raw |
-| A4 profile re-identification | 0.396 of raw |
-| A5 targeted (known facts) | 0.606 of raw |
-| A6 pseudonym inversion (hashes, base64, reversal, digit cores of originals) | 0.000 |
-| A7 cross-release (same pseudonym or same shifted date under another secret) | 0.000 |
-| combined risk → resistance | 0.218 → 0.782 (before the utility coupling) |
+| tehsil, shifted DOB, 5-year bands → district, birth year, 10-year bands | profile re-id 0.77 → 0.40 of raw |
+| attacker taught to read bare birth years (honest re-measurement) | 0.219 → 0.341 |
+| DOB suppressed (a birth year pins age to ±1 year) | 0.341 → 0.194 |
+| local recoding: 20-year band for patients unique on (band, sex, district, main diagnosis) | 0.194 → 0.173 |
 
-`tests/test_attack_checks.py` verifies that A1, A6 and A7 do fire on deliberately broken releases (a surviving
-phone, SHA-256(UHID) pseudonyms, an identical second release).
-
-Policy choice, measured with the same tool:
-
-| Policy | Record linkage | Profile re-id | Targeted |
-|---|---|---|---|
-| tehsil, shifted DOB, 5-year bands | 0.20 | 0.77 | 0.60 |
-| **district, birth year, 10-year bands (chosen)** | **0.09** | **0.40** | **0.61** |
-
-Generalising rare ICD codes to their chapter cost 1.4 % of clinical probes for no measured attack gain, so it
-is off (`rare_k: 0`). Coarser 20-year bands or dropping the PIN prefix lowered profile re-id only to about
-0.29 and did not move A5 in our approximation, so we did not trade that much research value for it.
+Population k (register people consistent with what we publish): median 11; patients with k ≤ 5 fell from 16
+to 7 of 48. Generalising rare ICD codes cost 1.4 % of medical values for no gain, so it is off. The date
+shift stays 7–180 days because no scored statistic is seasonal (`docs/scoring_notes.md`).
 
 ## Tests and tools (development only)
 ```bash
-python3 tests/run_all.py            # runs all suites below
-python3 tests/test_detect.py        # 59 adversarial detector cases (remove / keep)
-python3 tests/test_fields.py        # 89 unseen header variants
-python3 tests/test_shapes.py        # end-to-end: unusual file shapes, XML/CDA, DTD refusal
-python3 tests/test_fhir_ids.py      # identifier-like FHIR ids/references: removed, keyed, still resolving
-python3 tests/test_fhir_valid.py    # local FHIR validator: 10 positive controls + practice output (needs kit)
-python3 tests/test_secret.py        # missing/empty RAKSHA_SECRET fails closed; secret never written
-python3 tests/test_attack_checks.py # positive controls for local A1/A6/A7 (needs kit)
-python3 tools/score.py      --dev kit/dev --output out
-python3 tools/attack.py     --dev kit/dev --output out --output2 out_other_secret
-python3 tools/fhir_check.py --input kit/dev/input --output out
-python3 tools/chaos.py      --dev kit/dev --out chaos
+python3 tests/run_all.py              # all suites; NOT VERIFIED (exit 2) where the kit is missing
+#   test_detect (78 remove/keep cases), test_fields (99 headers and value columns), test_shapes (file layouts),
+#   test_fhir_ids, test_fhir_valid (11 controls), test_secret, test_dob_policy, test_linking (9 merge cases),
+#   test_attack_checks (A1/A6/A7 positive controls)
+python3 tools/get_kit.py && python3 tools/run_official_checks.py   # official checks -> docs/results/
+python3 tools/eval_all.py --name practice --dev kit/dev --name blind --dev blind   # [O]+[L] summary
+python3 tools/blind_variant.py --dev kit/dev --out blind           # blind holdout
+python3 tools/chaos.py --dev kit/dev --out chaos                   # unseen-format variant
+tools/run_in_container.sh python:3.10-slim                         # Linux, no network, C locale
+python3 tools/demo.py "Patient Name: Asha Rajput 48/F, W/o Kamal. C/O fever. Mob 9876543210"
+.venv/bin/python tools/fhir_validate_lib.py --input kit/dev/input --output out   # needs fhir.resources 6.5
 ```
 
 ## Models
