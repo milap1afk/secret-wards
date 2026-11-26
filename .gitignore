@@ -1,8 +1,7 @@
-kit
+kit/
+.venv/
 __pycache__/
 *.pyc
 out*/
-.venv/
-chaos/
 o_*/
-out*/
+chaos/
