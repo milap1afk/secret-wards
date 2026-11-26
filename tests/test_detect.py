@@ -56,6 +56,8 @@ CASES = [
     ("DOB: 12-Apr-1977", ["12-Apr-1977"], []),
     ("Date of Birth: 1977/04/12", ["1977/04/12"], []),
     ("D.O.B. 12.04.77", ["12.04.77"], []),
+    ("W/o Kamal Rajput. C/O fever x 3 days", ["Kamal Rajput"], ["C/O fever x 3 days"]),
+    ("Pt seen with R. K. Sharma, S/o Late Shri M. L. Sharma.", ["M. L. Sharma"], []),
     # --- label variants (round 2)
     ("Rogi: Kamla Devi, Umar 55", ["Kamla Devi"], []),
     ("Naam - Ramesh Chandra", ["Ramesh Chandra"], []),

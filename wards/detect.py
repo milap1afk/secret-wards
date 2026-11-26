@@ -333,6 +333,8 @@ def _name_run(text: str, pos: int, max_tokens: int = 4, allow_lower: bool = Fals
         toks.append(bare)
         end = tm.end() if not tok.endswith(".") or is_initial(tok) or low in ("md", "mohd") else tm.end() - 1
         i = tm.end()
+        if tok.endswith(".") and not is_initial(tok) and low not in ("md", "mohd", "km", "smt", "shri", "sri"):
+            break                    # "Kamal Rajput. C/O fever": a full stop after a word ends the name
         if i < n and text[i] in ",;:()[]|\n0123456789":
             break
     if start is None:
