@@ -1447,8 +1447,9 @@ class Pipeline:
                     if _has_pii_shape(k) or self.lex.phrase_re is not None and self.lex.phrase_re.search(fold(k)):
                         nk = self._render_free(k, file_unit, set())
                         # a name-shaped key whose value is a phone / ID / e-mail is a person ("Ravi Rao": "+91...")
-                        if nk == k and _looks_like_person(k) and isinstance(v, (str, int)) and not isinstance(v, bool) \
-                                and (re.search(r"\d{6,}", re.sub(r"[\s\-().]", "", str(v))) or "@" in str(v)):
+                        vals = " ".join(str(x) for x in _scalars(v, 3)) if isinstance(v, (dict, list)) else str(v)
+                        if nk == k and _looks_like_person(k) and not isinstance(v, bool) \
+                                and (re.search(r"\d{6,}", re.sub(r"[\s\-().]", "", vals)) or "@" in vals):
                             nk = "[NAME]"
                             self._count("NAME")
                         base, i = nk, 2

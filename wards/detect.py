@@ -118,7 +118,7 @@ RE_AADHAAR = re.compile(r"(?<![\d.])[2-9]\d{3}([\s\-.]?)\d{4}\1\d{4}(?![\d])")
 RE_AADHAAR_MASKED = re.compile(r"(?<![a-z0-9])(?:[x*]{4}[\s\-.]?){2}\d{4}(?!\d)|(?<![a-z0-9])[x*]{8}\d{4}(?!\d)")
 RE_PAN = re.compile(r"(?<![a-z0-9])[a-z]{5}\d{4}[a-z](?![a-z0-9])")
 RE_PHONE = re.compile(
-    r"(?<![\d+])(?:\(?(?:\+|00)?91\)?[ .\-]?|\(0\)[ ]?|0)?[6-9](?:[ .\-]?\d){9}(?![\d])"
+    r"(?<![\d+])(?:\(?(?:\+|00)?91\)?[ .\-]?|\(0\)[ ]?|0)?\(?[6-9](?:(?:[ .\-]|\)[ ]?|[ ]?\()?\d){9}(?![\d])"
 )
 # other Indian identifiers (shapes, not labels, so they are found in any context)
 RE_UPI = re.compile(r"(?<![a-z0-9._%+\-])[a-z0-9][a-z0-9._\-]{1,63}@[a-z]{2,32}(?![a-z0-9.@])")
@@ -165,7 +165,7 @@ REL_LABEL_WORDS = re.compile(r"(?i)attendant|relative|guardian|informant|caller|
 PHONE_LABELS = re.compile(r"(?i)\b(mob(?:ile)?|ph(?:one)?|tel|contact|cell|whats\s*app|call\s*back|callback|मोबाइल|फ़ोन|फोन)\b\.?\s*(?:no\.?|number)?\s*[:\-–=]?\s*")
 ADDR_LABELS = re.compile(r"(?i)(?<![a-z])(address|addr|add|residence|r/o|resident\s+of|पता|निवास)\s*[:\-–.]\s*")
 VILLAGE_MARKERS = re.compile(r"(?i)(?<![a-z])(vill(?:age)?\.?|gram|gaon|ग्राम|गांव|गाँव|मौजा|mauza)\s*[:\-–.]?\s*")
-DOB_LABELS = re.compile(r"(?i)(?<![a-z])(dob|d\.\s*o\.\s*b\.?|date\s*of\s*birth|birth\s*date|born\s*on|janm\s*tithi|जन्म\s*तिथि)\s*[:\-–=]?\s*")
+DOB_LABELS = re.compile(r"(?i)(?<![a-z])(dob|d\.\s*o\.\s*b\.?|date\s*of\s*birth|birth\s*date|born\s*on|janm\s*tithi|जन्म\s*(?:तिथि|दिनांक|तारीख)?)\s*[:\-–=]?\s*")
 
 RELATION_RE = re.compile(
     r"(?<![A-Za-z])(S\s*/\s*[Oo]|D\s*/\s*[Oo]|W\s*/\s*[Oo]|C\s*/\s*[Oo]|H\s*/\s*[Oo]|F\s*/\s*[Oo]|M\s*/\s*[Oo]|B\s*/\s*[Oo]|Son\s+of|Daughter\s+of|Wife\s+of|Husband\s+of|Father\s+of|Mother\s+of|"
@@ -176,16 +176,17 @@ VERB_CTX = re.compile(
     r"collected\s+by|received\s+from|consent\s+(?:given|signed)\s+by|report\s+of|on\s+behalf\s+of|"
     r"attendant|relative|husband|wife|son|daughter|father|mother|brother|sister)\s+(?:is\s+|named\s+|mr\.?\s+|mrs\.?\s+)?"
 )
-GENERIC_LABEL = re.compile(r"(?:^|(?<=[\n;,.|]))\s*([A-Za-z][A-Za-z'’ ]{1,30}?|[\u0900-\u097F][\u0900-\u097F ]{0,20}?)\s*[:=]\s*", re.M)
+GENERIC_LABEL = re.compile(r"(?:^|(?<=[\n;,.|]))\s*([A-Za-z][A-Za-z'’ &/()]{1,30}?|[\u0900-\u097F][\u0900-\u097F ]{0,20}?)\s*(?:[:=]|\s[-–]\s|[-–](?=\s))\s*", re.M)
 NAME_WORD = re.compile(r"(?<![a-z])(name|naam|nam|नाम)(?![a-z])")
 PATIENT_ROLE_WORD = re.compile(r"(?<![a-z])(patient|pt|beneficiary|insured|member|client|rogi|mareez|mariz|रोगी|मरीज़|मरीज|applicant|claimant|subscriber|holder|proband)(?![a-z])")
 REL_ROLE_WORD = re.compile(r"(?<![a-z])(attendant|relative|guardian|abhibhavak|अभिभावक|परिजन|parijan|kin|nok|husband|wife|father|mother|son|daughter|spouse|parent|nominee|emergency|contact person|escort|bystander|pati|patni|pita|mata)(?![a-z])")
 ROLE_WORD = re.compile(PATIENT_ROLE_WORD.pattern + "|" + REL_ROLE_WORD.pattern + r"|(?<![a-z])(contact|informant|caller|witness|donor|recipient|visitor|referred by patient)(?![a-z])")
 CLINICAL_LABEL = re.compile(r"(?<![a-z])(diagnosis|advice|adv|rx|complaint|complaints|c/o|history|h/o|k/c/o|ward|bed|consultant|doctor|dr|surgeon|department|dept|test|result|investigation|impression|plan|procedure|medication|medicine|drug|dose|frequency|vitals|bp|pulse|temp|spo2|weight|height|bmi|remarks?|notes?|course|treatment|status|hospital|unit|specimen|sample|lab|room|date|time|age|sex|gender|address|village|district|tehsil|state|pin|mobile|phone|email|uhid|mrn|id|no|number)(?![a-z])")
+ROLE_NOUN = re.compile(r"(?<![A-Za-z])(?:patient|pt\.?|mareez|mariz|rogi|beneficiary)\s+(?=[A-Z])|(?:मरीज़|मरीज|रोगी)\s+(?=[\u0900-\u097F])")
 AGE_SEX_BRACKET = re.compile(r"\(\s*(?:[MF]\s*/\s*\d{1,3}|\d{1,3}\s*(?:Y|Yrs?|years?)?\s*/\s*[MF])\s*\)")
 SUBJ_VERB = re.compile(r"(?:^|(?<=[.;!\n]\s)|(?<=^\s))([A-Z][a-z]{2,})\s+(?:called|phoned|rang|came|visited|paid|signed|informed|counselled|enquired|requested|refused|consented|agreed|left|brought)\b", re.M)
 OBJ_VERB = re.compile(r"(?i:\b(?:told|informed|called|phoned|counselled|counseled|asked|briefed|advised|explained\s+to))\s+(?=[A-Z])")
-GENERIC_ID_LABEL = re.compile(r"(?i)(?<![a-z])((?:[a-z][a-z.]{0,12}\s){0,2}[a-z][a-z.]{0,12})\s*(?:no\.?|number|num|id|#|code)\s*[:#\-–=]?\s*")
+GENERIC_ID_LABEL = re.compile(r"(?i)(?<![a-z])((?:[a-z][a-z.]{0,12}\s){0,2}[a-z][a-z.]{0,12})\s*(?:no\.?|number|num|id|#|code|card)\s*[:#\-–=]?\s*")
 NON_ID_LABEL = re.compile(r"(?i)(?<![a-z])(opd|visit|bill|invoice|receipt|sample|lab|test|batch|lot|package|pkg|loinc|icd|snomed|trip|ticket|order|bed|ward|room|unit|page|ref\.?\s*range|phone|mobile|mob|contact|cell|tel|pin|zip|postal|house|h|gali|plot|flat|serial|sr|s|sl)$")
 PLACE_MARKER_ANY = re.compile(r"(?<![A-Za-z])(?:Gram\s+Panchayat|Panchayat|Thana|Native\s+of|[Rr]\s*/\s*[Oo]|ग्राम\s+पंचायत|थाना|निवासी)\s*[:\-]?\s*(?=[A-Z\u0900-\u097F])")
 PLACE_MARKER_ADDR = re.compile(r"(?<![A-Za-z])(?:P\.?\s?O\.?|Post|P\.?\s?S\.?|Block|Tola|Purwa|Nagla|Majra|डाकघर|पोस्ट|ब्लॉक|टोला|पुरवा|नगला|मजरा)\s*[:\-]?\s+(?=[A-Z\u0900-\u097F])")
@@ -336,7 +337,8 @@ def _name_run(text: str, pos: int, max_tokens: int = 4, allow_lower: bool = Fals
         bare = tok.rstrip(".")
         low = bare.lower()
         ok = False
-        if is_initial(tok) or low in ("md", "mohd", "mohd.", "km", "smt", "shri", "sri", "sh", "mst", "master", "baby", "late", "kumari"):
+        if is_initial(tok) or low in ("md", "mohd", "mohd.", "km", "smt", "shri", "sri", "sh", "mst", "master", "baby", "late", "kumari") \
+                or bare in ("श्री", "श्रीमती", "स्व", "स्व.", "कुमारी", "सुश्री"):
             ok = True
         elif is_name_token(bare):
             ok = True
@@ -531,9 +533,9 @@ class Detector:
         for m in GENERIC_LABEL.finditer(t):
             label = m.group(1).strip()
             low = label.lower()
-            if CLINICAL_LABEL.search(low):
-                continue
             named = bool(NAME_WORD.search(low))
+            if CLINICAL_LABEL.search(low) and not named:
+                continue              # "Diagnosis:", "Age:" never start a name; "Name & Age:" does
             role = bool(ROLE_WORD.search(low))
             if not (named or role):
                 continue
@@ -555,6 +557,12 @@ class Detector:
                     st = m.start() - len(left) + mm.start(1) + off
                     spans.append(Span(st, m.start() - len(left) + mm.end(1), "NAME", role="patient",
                                       value=" ".join(words), meta={"src": "age-bracket"}))
+        # role noun directly before a name: "patient Selvi informed", "मरीज़ श्यामलाल को बुखार"
+        from .namemodel import is_name as _is_name
+        for m in ROLE_NOUN.finditer(t):
+            s0, e0, toks = _name_run(t, m.end(), max_tokens=3)
+            if toks and all(gz.is_known_name_token(x) or _is_name(x) for x in toks):
+                spans.append(Span(s0, e0, "NAME", role="patient", value=" ".join(toks), meta={"src": "role-noun"}))
         # communication verbs: "<Name> called/phoned/visited ...", "told/informed <Name>"
         from .namemodel import is_name
         for m in SUBJ_VERB.finditer(t):
@@ -731,6 +739,9 @@ class Detector:
                 s0, e0, toks = _place_run(t, m.end())
                 if toks:
                     spans.append(Span(s0, e0, "VILLAGE", value=" ".join(toks)))
+        if addr_ctx:
+            for m in re.finditer(r"(?<![\w#])#\s?\d{1,5}[A-Za-z]?(?:/\d{1,4})?(?![\w])", t):
+                spans.append(Span(m.start(), m.end(), "HOUSE", value=m.group(0)))
         for m in GALI_RE.finditer(t):
             spans.append(Span(m.start(), m.end(), "LOCALITY", value=m.group(0)))
 
