@@ -125,6 +125,7 @@ RE_PASSPORT = re.compile(r"(?<![a-z0-9])[a-z][1-9]\d{6}(?![a-z0-9])")
 RE_EPIC = re.compile(r"(?<![a-z0-9])[a-z]{3}\d{7}(?![a-z0-9])")
 RE_IFSC = re.compile(r"(?<![a-z0-9])[a-z]{4}0[a-z0-9]{6}(?![a-z0-9])")
 RE_LONGNUM = re.compile(r"(?<![\d.])\d{9,18}(?![\d.])")
+RE_PHONE_INTL = re.compile(r"(?<![\d+])\+(?!91)\d{1,3}[ \-.]?\(?\d{1,4}\)?(?:[ \-.]?\d){6,10}(?!\d)")
 RE_PHONE_MASKED = re.compile(r"(?<![a-z0-9])[6-9]\d[x*]{6}\d{2}(?![a-z0-9])|(?<![a-z0-9])[6-9]\d{1,3}[x*]{4,7}\d{1,4}(?![a-z0-9])")
 RE_INSURANCE = re.compile(
     r"(?<![a-z0-9])(?:pmjay|abpmjay|ab-pmjay|ayushman|pol|policy|ins|claim|cghs|esic)[\-/ ]?(?:[a-z]{2}[\-/])?\d[\d\-/]{5,}\d(?![\d])"
@@ -386,6 +387,8 @@ class Detector:
         for m in RE_PHONE.finditer(f):
             d = re.sub(r"\D", "", m.group(0))[-10:]
             spans.append(Span(m.start(), m.end(), "PHONE", value=d))
+        for m in RE_PHONE_INTL.finditer(f):     # non-Indian numbers (+977, +44 ...)
+            spans.append(Span(m.start(), m.end(), "PHONE", value=re.sub(r"\D", "", m.group(0))[-10:]))
         for m in RE_PHONE_MASKED.finditer(f):
             spans.append(Span(m.start(), m.end(), "PHONE_MASKED", value=m.group(0)))
         for m in RE_MRN_ALNUM.finditer(f):

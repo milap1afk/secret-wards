@@ -51,7 +51,7 @@ _RULES = [
     (r" (mobile|mob|phone|ph|tel|telephone|contact no|contact number|cell|whatsapp|whats app|callback|call back|mobaail|phon) ", PHONE),
     (r" (relation|relationship|rishta|sambandh) $", RELATION),
     (r" (pita|pati|father|husband|guardian|relative|attendant|next of kin|kin|nok|mother|spouse|care of|c o|s o|d o|w o|parent|abhibhavak|parijan|emergency contact) ", REL_NAME),
-    (r" (uhid|mrn|mr number|mr num|medical record|registration number|reg number|regn no|regn|ip op no|ip op|op no|cr no|crno|patient id|patientid|pt id|reg no|registration no|reg id|regno|hospital uhid|patient ref|patient uhid|hospital id|hospital no|ipd patient|panjikaran sankhya|record no|mr no|file no|opd no|patient number) ", UHID),
+    (r" (mrd sankhya|mrd no|panjiyan sankhya|panjiyan|panjikaran|registration sankhya|uhid|mrn|mr number|mr num|medical record|registration number|reg number|regn no|regn|ip op no|ip op|op no|cr no|crno|patient id|patientid|pt id|reg no|registration no|reg id|regno|hospital uhid|patient ref|patient uhid|hospital id|hospital no|ipd patient|panjikaran sankhya|record no|mr no|file no|opd no|patient number) ", UHID),
     (r" (ipd|ip no|admission no|adm no|admission id|encounter|inpatient no|bht) ", ENC),
     (r" (first|given|fname|first name|given name|pratham) ", FIRST),
     (r" (last|family|surname|lname|last name|family name|upnaam) ", LAST),
@@ -67,7 +67,7 @@ _RULES = [
     (r" (village|vill|gaon|ganv|gav|gram|gramam|mauza|town|city) ", VILLAGE),
     (r" (mohalla|locality|colony|area|ward no|sector) ", LOCALITY),
     (r" (address|addr|street|line|house|makan|pata|residence|location address|res) ", ADDRESS),
-    (r" (patient name|patient|pt name|name|naam|full name|nam|beneficiary|insured) ", NAME),
+    (r" (patient name|patient|pt name|name|naam|full name|nam|beneficiary|insured|rogi|rogi ka nam|mareez|mariz|marij|labharthi|purna nam|pura nam|pora nam) ", NAME),
     (r" (date|dt|on|time|timestamp|tarikh|tithi|collected|reported|admitted|discharged|registered|visit|generated|updated|created|exported) ", DATE),
 ]
 _COMPILED = [(re.compile(_vnorm(p)), s) for p, s in _RULES]
@@ -95,7 +95,9 @@ _ORG_CTX = {"facility", "organization", "organisation", "hospital", "lab", "labo
             "system", "export", "_export_meta", "meta", "profile", "composition", "bundle", "ward", "vaccine"}
 _REL_CTX = {"guardian", "contact", "relative", "attendant", "kin", "nok", "father", "husband", "mother", "spouse",
             "next_of_kin", "nextofkin", "emergency_contact", "parent", "relatedperson", "linkage"}
-_PATIENT_CTX = {"patient", "subject", "beneficiary", "member", "insured", "person", "patients", "pt"}
+_PATIENT_CTX = {"patient", "subject", "beneficiary", "member", "insured", "person", "patients", "pt", "rogi",
+                "rogi_vivaran", "rogivivaran", "mareez", "mariz", "marij", "labharthi", "rogee", "patient_details",
+                "patientdetails", "pt_details", "demographics"}
 _OTHER_PERSON_CTX = {"raised_by", "raisedby", "caller", "informant", "witness", "reported_by", "requested_by",
                      "visitor", "escort", "brought_by", "submitted_by", "created_by", "user"}
 _NAMEISH_KEYS = {"name", "text", "display", "given", "family", "first", "last", "local", "full", "fullname",

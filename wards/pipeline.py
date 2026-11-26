@@ -83,6 +83,27 @@ def decode_bytes(raw: bytes) -> str:
     return txt
 
 
+_FW_RULE = re.compile(r"^\s*-{2,}(?:[ \t]+-{2,})+\s*$")
+
+
+def is_fixed_width(text: str) -> bool:
+    lines = [ln for ln in text.splitlines() if ln.strip()]
+    return len(lines) >= 3 and bool(_FW_RULE.match(lines[1]))
+
+
+def table_delimiter(text: str):
+    """A delimiter that splits most non-empty lines into the same number (>= 3) of fields, else None."""
+    lines = [ln for ln in text.splitlines() if ln.strip()][:200]
+    if len(lines) < 3:
+        return None
+    for cand in ("|", "\t", ",", ";"):
+        counts = [ln.count(cand) for ln in lines]
+        modal, freq = collections.Counter(counts).most_common(1)[0]
+        if modal >= 2 and freq >= 0.8 * len(lines):
+            return cand
+    return None
+
+
 def sniff_format(rel: str, text: str) -> str:
     ext = Path(rel).suffix.lower()
     head = text.lstrip()[:1]
@@ -92,6 +113,8 @@ def sniff_format(rel: str, text: str) -> str:
         if re.search(r"(?i)<!DOCTYPE|<!ENTITY", text):
             raise Quarantine("xml_dtd_not_allowed")
         return "xml"
+    if ext in (".jsonl", ".ndjson"):
+        return "jsonl"
     if ext in JSON_EXT:
         return "json"
     if ext in CSV_EXT:
@@ -99,13 +122,20 @@ def sniff_format(rel: str, text: str) -> str:
             raise Quarantine("format_mismatch")
         return "csv"
     if ext in TEXT_EXT:
-        if head == "{" and text.rstrip().endswith("}"):
-            try:
-                json.loads(text)
-                return "text"
-            except ValueError:
-                pass
+        if is_fixed_width(text):
+            return "fixed"
+        if table_delimiter(text) == "|":
+            return "csv"
         return "text"
+    # unknown extension with text content: handle it by what it is, never by guessing
+    if head in ("{", "["):
+        try:
+            json.loads(text)
+            return "json"
+        except (ValueError, RecursionError):
+            raise Quarantine("unsupported_format")
+    if table_delimiter(text):
+        return "csv"
     raise Quarantine("unsupported_format")
 
 
@@ -265,17 +295,21 @@ class Pipeline:
             try:
                 if not raw.strip():
                     raise Quarantine("empty_file")
-                if Path(rel).suffix.lower() not in TEXT_EXT | CSV_EXT | JSON_EXT | XML_EXT:
-                    raise Quarantine("unsupported_format")   # decide by type before trying to decode
+                if Path(rel).suffix.lower() not in TEXT_EXT | CSV_EXT | JSON_EXT | XML_EXT and (
+                        raw[:4] in (b"%PDF", b"PK\x03\x04", b"\xd0\xcf\x11\xe0") or raw[:3] == b"\xff\xd8\xff"
+                        or raw[:8] == b"\x89PNG\r\n\x1a\n" or b"\x00" in raw[:4096] and not raw.startswith((b"\xff\xfe", b"\xfe\xff"))):
+                    raise Quarantine("unsupported_format")   # binary documents/images: never decoded
                 text = decode_bytes(raw)
                 text = strip_zero_width(text)
                 job.newline = "\r\n" if "\r\n" in text else "\n"
                 job.fmt = sniff_format(rel, text)
                 job.text = text
-                if job.fmt == "json":
+                if job.fmt in ("json", "jsonl"):
                     self._load_json(job)
                 elif job.fmt == "csv":
                     self._load_csv(job)
+                elif job.fmt == "fixed":
+                    self._load_fixed(job)
                 elif job.fmt == "xml":
                     self._load_xml(job)
                 job.date_order = self._date_order(job)
@@ -288,8 +322,19 @@ class Pipeline:
 
     def _load_json(self, job: FileJob) -> None:
         txt = job.text
-        if Path(job.rel).suffix.lower() in (".ndjson", ".jsonl"):
-            raise Quarantine("unsupported_format")
+        if job.fmt == "jsonl":
+            objs = []
+            for ln in txt.splitlines():
+                if not ln.strip():
+                    continue
+                try:
+                    objs.append(json.loads(ln))
+                except (ValueError, RecursionError):
+                    raise Quarantine("malformed_jsonl")
+            if not objs or _depth(objs) > MAX_JSON_DEPTH:
+                raise Quarantine("malformed_jsonl")
+            job.data, job.json_indent = objs, None
+            return
         try:
             data = json.loads(txt)
         except RecursionError:
@@ -313,6 +358,24 @@ class Pipeline:
             raise Quarantine("malformed_xml")
         m = re.match(r"\s*(<\?xml[^>]*\?>)", job.text)
         job.xml_decl = m.group(1) if m else ""
+
+    def _load_fixed(self, job: FileJob) -> None:
+        lines = job.text.splitlines()
+        idx = [i for i, ln in enumerate(lines) if ln.strip()]
+        h, rule = idx[0], idx[1]
+        starts = [m.start() for m in re.finditer(r"-{2,}", lines[rule])]
+        job.fw_starts = starts
+        job.fw_head = lines[:rule + 1]
+
+        def cut(ln):
+            cells = []
+            for k, st in enumerate(starts):
+                en = starts[k + 1] if k + 1 < len(starts) else None
+                cells.append(ln[st:en].strip() if en is not None else ln[st:].strip())
+            return cells
+        job.header = cut(lines[h])
+        job.rows = [cut(ln) for ln in lines[rule + 1:] if ln.strip()]
+        job.fw_tail_blank = job.text.endswith(("\n", "\r\n"))
 
     def _load_csv(self, job: FileJob) -> None:
         job.delim = sniff_delimiter(job.rel, job.text)
@@ -374,10 +437,14 @@ class Pipeline:
             if job.status == "quarantined":
                 continue
             try:
-                if job.fmt == "csv":
+                if job.fmt in ("csv", "fixed"):
                     self._units_csv(job)
-                elif job.fmt == "json":
+                elif job.fmt in ("json", "jsonl"):
                     self._units_json(job)
+                    if job.fmt == "jsonl":
+                        for u in job.units:          # SPEC row:N for line records (N = non-empty line index)
+                            if u.loc.startswith("/"):
+                                u.loc = "row:" + u.loc[1:].split("/", 1)[0]
                 elif job.fmt == "xml":
                     self._units_xml(job)
                 else:
@@ -795,8 +862,10 @@ class Pipeline:
             try:
                 if job.fmt == "csv":
                     body = self._write_csv(job)
-                elif job.fmt == "json":
+                elif job.fmt in ("json", "jsonl"):
                     body = self._write_json(job)
+                elif job.fmt == "fixed":
+                    body = self._write_fixed(job)
                 elif job.fmt == "xml":
                     body = self._write_xml(job)
                 else:
@@ -1210,6 +1279,30 @@ class Pipeline:
         body = ET.tostring(job.data, encoding="unicode")
         return (job.xml_decl + job.newline if job.xml_decl else "") + body + job.newline
 
+    def _write_fixed(self, job: FileJob) -> str:
+        """Fixed-width table: rewrite each cell in place, padded back to its column width."""
+        nl = job.newline
+        starts = job.fw_starts
+        widths = [starts[i + 1] - starts[i] for i in range(len(starts) - 1)]
+        hdr_unit = Unit(job.rel, "@header", "file", date_order=job.date_order)
+        out = [self._render_free(ln, hdr_unit, set()) if _has_pii_shape(ln) else ln for ln in job.fw_head]
+
+        def place(cells):
+            parts = []
+            for i, c in enumerate(cells):
+                c = "" if c is None else str(c)
+                if i < len(widths):
+                    parts.append(c.ljust(widths[i]) if len(c) < widths[i] else c + " ")
+                else:
+                    parts.append(c)
+            return ("" if not starts else " " * starts[0]) + "".join(parts).rstrip()
+        for u in job.units:
+            found = self._prepare_unit(u)
+            sweep = self._sweep_keys(u, found)
+            ctx = {"tehsil": u.tehsil, "district": u.district}
+            out.append(place([self._render_leaf(lf, u, sweep, ctx) for lf in u.leaves]))
+        return nl.join(out) + (nl if job.fw_tail_blank else "")
+
     def _write_text(self, job: FileJob) -> str:
         u = job.units[0]
         found = self._prepare_unit(u)
@@ -1244,6 +1337,11 @@ class Pipeline:
                     nk = k
                     if _has_pii_shape(k) or self.lex.phrase_re is not None and self.lex.phrase_re.search(fold(k)):
                         nk = self._render_free(k, file_unit, set())
+                        # a name-shaped key whose value is a phone / ID / e-mail is a person ("Ravi Rao": "+91...")
+                        if nk == k and _looks_like_person(k) and isinstance(v, (str, int)) and not isinstance(v, bool) \
+                                and (re.search(r"\d{6,}", re.sub(r"[\s\-().]", "", str(v))) or "@" in str(v)):
+                            nk = "[NAME]"
+                            self._count("NAME")
                         base, i = nk, 2
                         while nk in out:
                             nk = f"{base}_{i}"
@@ -1262,6 +1360,8 @@ class Pipeline:
             return self._render_leaf(lf, u, sweep, ctx)
 
         new = rebuild(data, ())
+        if job.fmt == "jsonl":
+            return "\n".join(json.dumps(x, ensure_ascii=False) for x in new) + "\n"
         if job.json_indent is None:
             return json.dumps(new, ensure_ascii=False, separators=(",", ":"))
         return json.dumps(new, ensure_ascii=False, indent=job.json_indent) + ("\n" if job.text.endswith("\n") else "")
@@ -1353,22 +1453,40 @@ def _walk(data):
 
 
 _PERSON_SEMS = {F.NAME, F.FIRST, F.UHID, F.PHONE, F.AADHAAR, F.ABHA, F.REL_NAME, F.DOB, F.OTHER_PERSON}
+_ID_SHAPE = re.compile(r"(?<![a-z0-9])(?:[a-z]{2,6}[\-/]?\d{2,4}[\-/]\d{3,8}|[a-z]{2,6}\d{5,8}|[a-z]{2,6}[\-/]\d{4,8})(?![a-z0-9])"
+                       r"|(?<!\d)[6-9]\d{9}(?!\d)")
 
 
 def _item_is_person(x: dict, anc_key: str) -> bool:
+    """Is this dict one person's record? By its keys (any language) or, failing that, by its values."""
     for k, v in x.items():
+        lk = F._norm_key(str(k))
         if isinstance(v, dict):
-            if str(k).lower() in ("patient", "name", "subject", "ids", "contact", "guardian", "raised_by", "meta"):
+            if lk in ("patient", "name", "subject", "ids", "contact", "guardian", "raised_by", "meta") or lk in F._PATIENT_CTX:
                 return True
             continue
         sem = F.classify_json(str(k), [anc_key, 0])
         if sem in _PERSON_SEMS:
             return True
-    return False
+    flat = " ".join(str(v) for v in _scalars(x, 3))
+    return bool(_ID_SHAPE.search(fold(flat)))
+
+
+def _scalars(o, depth):
+    if depth < 0:
+        return []
+    if isinstance(o, dict):
+        return [y for v in o.values() for y in _scalars(v, depth - 1)]
+    if isinstance(o, list):
+        return [y for v in o[:20] for y in _scalars(v, depth - 1)]
+    return [o] if isinstance(o, (str, int)) and not isinstance(o, bool) else []
 
 
 def _find_record_list(data):
-    """Path of the main list of per-patient records, or None for single-document JSON."""
+    """Path of the main list of per-patient records at ANY depth, or None for single-document JSON.
+
+    Breadth-first, so the shallowest qualifying list wins; a dict that is itself about one patient
+    ({"patient": {...}, "panels": [...]}) is a document, not a list of records."""
     if isinstance(data, list):
         if data and all(isinstance(x, dict) for x in data) and \
                 sum(1 for x in data if _item_is_person(x, "")) / len(data) >= 0.5:
@@ -1378,24 +1496,30 @@ def _find_record_list(data):
         return None
     if data.get("resourceType") == "Bundle":
         return None
-    # a document about ONE patient: {"patient": {...}, "panels": [...]}
     for k, v in data.items():
-        if str(k).lower() in ("patient", "subject", "pt") and isinstance(v, dict):
+        if F._norm_key(str(k)) in ("patient", "subject", "pt") and isinstance(v, dict):
             return None
     frontier = [((), data)]
-    for _depth_i in range(3):
+    for _depth_i in range(12):
         nxt = []
         for path, node in frontier:
-            if not isinstance(node, dict):
+            if isinstance(node, dict):
+                items = list(node.items())
+            elif isinstance(node, list):
+                items = list(enumerate(node))
+            else:
                 continue
-            for k, v in node.items():
+            for k, v in items:
                 if isinstance(v, list) and v and all(isinstance(x, dict) for x in v):
                     share = sum(1 for x in v if _item_is_person(x, str(k))) / len(v)
-                    if share >= 0.5:
+                    if share >= 0.5 and (len(v) >= 2 or not isinstance(node, list)):
                         return path + (k,)
-                elif isinstance(v, dict):
+                    nxt += [(path + (k, i), x) for i, x in enumerate(v)]
+                elif isinstance(v, (dict, list)):
                     nxt.append((path + (k,), v))
         frontier = nxt
+        if not frontier:
+            break
     return None
 
 

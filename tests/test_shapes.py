@@ -14,9 +14,10 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-NAMES = ["Kanhaiyalal Ojha", "Hiralal Rajak", "Vaidehi Mallah", "Rudransh Gaharwar", "Bhagirath Tomar", "Chandrakala Sengar", "Trilok Bundela", "Yamini Chandel", "Mangru Ram",
+NAMES = ["Tashi Namgyal Bhutia", "Lalita Majhi", "Sohan Murmu", "Bhola Hembram", "Kamli Soren", "Jaggu Oraon",
+         "Phoolo Tirkey", "Kanhaiyalal Ojha", "Hiralal Rajak", "Vaidehi Mallah", "Rudransh Gaharwar", "Bhagirath Tomar", "Chandrakala Sengar", "Trilok Bundela", "Yamini Chandel", "Mangru Ram",
          "Omveer Jadon", "Fakira Sisodia", "Gangadin Parihar", "Nankau", "Pancham"]
-PHONES = ["9811100022", "9800012345", "234567890123", "9876501234", "9876501299", "9812345670", "9812345671", "9811122233", "9800011122", "9800011199"]
+PHONES = ["984-1052799", "9811100022", "9800012345", "234567890123", "9876501234", "9876501299", "9812345670", "9812345671", "9811122233", "9800011122", "9800011199"]
 
 
 def build(d: Path) -> None:
@@ -41,6 +42,15 @@ def build(d: Path) -> None:
     (d / "a/preamble.csv").write_text("Lab export - Collection Centre\nCourier booked by Kanhaiyalal Ojha, ph 9811100022\n\n"
                                       "sample,patient_name,uhid,test,result\nS1,Hiralal Rajak,KG-000901,Hb,9.1\n"
                                       "S2,Vaidehi Mallah,KG-000902,Hb,11.4\n", encoding="utf-8")
+    (d / "a/visits.jsonl").write_text(json.dumps({"_meta": {"contacts": {"Tashi Namgyal Bhutia": "+977 984-1052799"}}}) + "\n"
+                                      + json.dumps({"patient_ref": "KG-000911", "name": "Lalita Majhi", "visit_date": "2026-01-03"}) + "\n\n"
+                                      + json.dumps({"patient_ref": "KG-000912", "name": "Sohan Murmu", "visit_date": "2026-01-04"}) + "\n",
+                                      encoding="utf-8")
+    (d / "a/results.txt").write_text("sample  patient_name     uhid        test  result\n------  ---------------  ----------  ----  ------\n"
+                                     "S1      Bhola Hembram    KG-000921   Hb    9.4\nS2      Kamli Soren      KG-000922   Hb    10.1\n",
+                                     encoding="utf-8")
+    (d / "a/claims.txt").write_text("bill|uhid|patient_name|amount\nB1|KG-000931|Jaggu Oraon|9100\nB2|KG-000932|Phoolo Tirkey|5100\n",
+                                    encoding="utf-8")
     (d / "b/bomb.xml").write_text('<?xml version="1.0"?><!DOCTYPE lolz [<!ENTITY lol "lol">]><a>&lol;</a>', encoding="utf-8")
 
 
@@ -71,6 +81,11 @@ def main() -> int:
         pre = {x["loc"]: x["patient"] for x in recs if x["file"].endswith("preamble.csv")}
         if sorted(pre) != ["row:0", "row:1"] or pre.get("row:0") == pre.get("row:1"):
             fails.append(f"preamble CSV rows wrong: {sorted(pre)}")
+        for fname, want in (("visits.jsonl", ["row:1", "row:2"]), ("results.txt", ["row:0", "row:1"]),
+                            ("claims.txt", ["row:0", "row:1"])):
+            got = {x["loc"]: x["patient"] for x in recs if x["file"].endswith(fname)}
+            if [k for k in want if k not in got] or len({got.get(k) for k in want}) != len(want):
+                fails.append(f"{fname}: records {sorted(got)} (want {want}, distinct pseudonyms)")
         tl = [x["patient"] for x in recs if x["file"].endswith("top_level_list.json")]
         if len(tl) != 2 or tl[0] == tl[1]:
             fails.append(f"top-level list records wrong: {tl}")
