@@ -47,7 +47,7 @@ Practice answer key: 192 files `expect: sanitize`, 8 files `expect: either` ("ei
 | misc/empty_export.csv | either | quarantined (empty_file) |
 | misc/hl7_cda_discharge.xml | either | sanitised (XML/CDA support) |
 | misc/mislabeled_export.csv | either | quarantined (format_mismatch) |
-| misc/photo_rx.jpg | either | quarantined (reported as invalid_utf8; should read unsupported_format) |
+| misc/photo_rx.jpg | either | quarantined (unsupported_format) |
 | misc/scanned_discharge.pdf | either | quarantined (unsupported_format) |
 | misc/truncated_opd.json | either | quarantined (malformed_json) |
 

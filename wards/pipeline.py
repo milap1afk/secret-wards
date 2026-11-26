@@ -248,6 +248,8 @@ class Pipeline:
             try:
                 if not raw.strip():
                     raise Quarantine("empty_file")
+                if Path(rel).suffix.lower() not in TEXT_EXT | CSV_EXT | JSON_EXT | XML_EXT:
+                    raise Quarantine("unsupported_format")   # decide by type before trying to decode
                 text = decode_bytes(raw)
                 text = strip_zero_width(text)
                 job.newline = "\r\n" if "\r\n" in text else "\n"
