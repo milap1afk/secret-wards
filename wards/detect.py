@@ -607,6 +607,9 @@ class Detector:
                 s1, e1, toks1 = _name_run(t, lm.end(), allow_lower=False, max_tokens=3)
                 if not toks1 or s1 != lm.end():
                     break
+                if re.match(r"\s*(?:[:=\-–]|\d)", t[e1:e1 + 3]) or any(re.fullmatch(r"[A-Z]{2,4}", x) for x in toks1) \
+                        or CLINICAL_LABEL.search(" ".join(toks1).lower()) or NAME_WORD.search(" ".join(toks1).lower()):
+                    break           # "Kush Tiwari, DOB 02/05/2014": the next label, not another name
                 spans.append(Span(s1, e1, "NAME", role=r, value=" ".join(toks1), meta={"src": "label"}))
                 e0 = e1
         for m in SALUTATION.finditer(t):

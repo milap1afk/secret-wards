@@ -249,6 +249,8 @@ CASES = [
  ("Patient Name : SUNIL KUMAR S", ["SUNIL KUMAR"], []),
  ("VID: 9182 7364 5546 1029", ["9182 7364 5546 1029"], []),
  ("mail: ramesh.k[at]gmail[dot]com", ["ramesh.k[at]gmail[dot]com"], []),
+ ("Patient: Sohan Lal, DOB 02/05/2014, mob 9450011100", ["Sohan Lal", "02/05/2014"], ["DOB"]),
+ ("Name: Kamini Arora, Age 33, Sex F", ["Kamini Arora"], ["Age 33"]),
  # round 8: name labels in other Indian scripts; localities named by suffix inside an address
  ("রোগীর নাম: অনিমা ঘোষ", ["অনিমা ঘোষ"], []),
  ("નામ - ભાવેશ શાહ", ["ભાવેશ શાહ"], []),
