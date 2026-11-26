@@ -181,6 +181,8 @@ def format_date(d: dt.date, info: dict) -> str:
     st = info["style"]
     if st == "num":
         return format_num_date(d, info)
+    if st == "compact":
+        return f"{d.year:04d}{d.month:02d}{d.day:02d}"
     if st == "hindi":
         return f"{d.day} {HINDI_MONTHS[d.month - 1]} {d.year}"
     if st == "mon":
@@ -229,8 +231,19 @@ def parse_ymd(s: str):
     return (d, {"style": "ymd", "sep": m.group(2)}) if d else None
 
 
+def parse_compact(s: str):
+    m = re.match(r"^\s*((?:19|20)\d{2})(\d{2})(\d{2})\s*$", s)
+    if not m:
+        return None
+    d = _mk(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+    return (d, {"style": "compact"}) if d else None
+
+
 def parse_any_date(s: str, order: str, ref_year: int = 2026):
     s2 = s.strip()
+    r = parse_compact(s2)
+    if r:
+        return r
     for fn in (parse_mon_date, parse_ymd):
         r = fn(s2)
         if r:
