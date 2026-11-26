@@ -29,6 +29,7 @@ from .policy import POLICY
 from .privacy import (age_band, pin_prefix, pseudonym, shift_date_string, shift_days, surrogate_id,
                       parse_any_date)
 from . import rare as rare_mod
+from . import vault
 from .textnorm import decode_escapes, fold, strip_zero_width, try_b64, B64_RE
 from .translit import name_key, vowel_key
 
@@ -1300,6 +1301,12 @@ def run(inp: Path, out: Path) -> int:
     records = pl.sanitize_all()
     exported = {j.out_rel for j in pl.jobs if j.status == "sanitized"}
     records = [r for r in records if r["file"] in exported]
+    for j in pl.jobs:
+        if j.status == "quarantined":
+            try:
+                vault.store(out, (inp / j.rel).read_bytes())
+            except Exception:  # noqa: BLE001 - vault is best effort, never fatal
+                pass
     with open(out / "records.jsonl", "w", encoding="utf-8", newline="\n") as fh:
         for r in records:
             fh.write(json.dumps(r, ensure_ascii=False, sort_keys=True) + "\n")
