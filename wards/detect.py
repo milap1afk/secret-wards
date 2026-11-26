@@ -51,21 +51,24 @@ class Span:
 
 
 def resolve(spans: list) -> list:
-    """Greedy non-overlapping selection by priority then length."""
+    """Greedy non-overlapping selection by priority then length, O(n log n): accepted intervals are kept
+    sorted and disjoint, so each candidate only needs its two neighbours checked."""
+    import bisect
     ordered = sorted(spans, key=lambda s: (-PRIORITY.get(s.kind, 0), -s.length, s.start))
+    starts: list = []
+    ends: list = []
     taken: list = []
-    occupied = []
     for s in ordered:
         if s.end <= s.start:
             continue
-        clash = False
-        for a, b in occupied:
-            if s.start < b and a < s.end:
-                clash = True
-                break
-        if not clash:
-            taken.append(s)
-            occupied.append((s.start, s.end))
+        i = bisect.bisect_right(starts, s.start)
+        if i > 0 and ends[i - 1] > s.start:
+            continue
+        if i < len(starts) and starts[i] < s.end:
+            continue
+        starts.insert(i, s.start)
+        ends.insert(i, s.end)
+        taken.append(s)
     return sorted(taken, key=lambda s: s.start)
 
 
@@ -108,8 +111,8 @@ def is_initial(tok: str) -> bool:
 
 # ------------------------------------------------------------------ identifier patterns
 SEP = r"[\s\-./]?"
-RE_EMAIL = re.compile(r"[a-z0-9][a-z0-9._%+\-]*@[a-z0-9\-]+(?:\.[a-z0-9\-]+)+")
-RE_ABHA_ADDR = re.compile(r"\b[a-z0-9][a-z0-9._]{2,}@(?:abdm|sbx|ndhm|abha)\b")
+RE_EMAIL = re.compile(r"(?<![a-z0-9._%+\-])[a-z0-9][a-z0-9._%+\-]{0,63}@[a-z0-9\-]{1,63}(?:\.[a-z0-9\-]{1,63}){1,8}")
+RE_ABHA_ADDR = re.compile(r"(?<![a-z0-9._])[a-z0-9][a-z0-9._]{2,63}@(?:abdm|sbx|ndhm|abha)\b")
 RE_ABHA = re.compile(r"(?<![\d])\d{2}[\s\-]\d{4}[\s\-]\d{4}[\s\-]\d{4}(?![\d])|(?<![\d])\d{14}(?![\d])")
 RE_AADHAAR = re.compile(r"(?<![\d.])[2-9]\d{3}([\s\-.]?)\d{4}\1\d{4}(?![\d])")
 RE_AADHAAR_MASKED = re.compile(r"(?<![a-z0-9])(?:[x*]{4}[\s\-.]?){2}\d{4}(?!\d)|(?<![a-z0-9])[x*]{8}\d{4}(?!\d)")
@@ -118,7 +121,7 @@ RE_PHONE = re.compile(
     r"(?<![\d+])(?:\(?(?:\+|00)?91\)?[ .\-]?|\(0\)[ ]?|0)?[6-9](?:[ .\-]?\d){9}(?![\d])"
 )
 # other Indian identifiers (shapes, not labels, so they are found in any context)
-RE_UPI = re.compile(r"(?<![a-z0-9._%+\-])[a-z0-9][a-z0-9._\-]{1,}@[a-z]{2,}(?![a-z0-9.@])")
+RE_UPI = re.compile(r"(?<![a-z0-9._%+\-])[a-z0-9][a-z0-9._\-]{1,63}@[a-z]{2,32}(?![a-z0-9.@])")
 RE_DL = re.compile(r"(?<![a-z0-9])[a-z]{2}[ \-]?\d{2}[ \-]?(?:19|20)\d{2}[ \-]?\d{7}(?![a-z0-9])")
 RE_VEHICLE = re.compile(r"(?<![a-z0-9])[a-z]{2}[ \-]?\d{1,2}[ \-]?[a-z]{1,3}[ \-]?\d{4}(?![a-z0-9])")
 RE_PASSPORT = re.compile(r"(?<![a-z0-9])[a-z][1-9]\d{6}(?![a-z0-9])")
@@ -504,12 +507,10 @@ class Detector:
         # suffix honorific: "<Name> sahab", "<Name> ji", "<नाम> जी"
         for m in HONORIFIC_RE.finditer(t):
             hon = m.group(1).lower()
-            # walk back over up to 3 name tokens
-            left = t[:m.start()]
-            toks = list(re.finditer(r"([A-Za-z\u00C0-\u024F][A-Za-z\u00C0-\u024F'’]*\.?|[\u0900-\u0963\u0970-\u097F]+)\s*$", left))
+            # walk back over up to 3 name tokens, inside a bounded window (linear time on any input)
+            base = max(0, m.start() - 80)
             seq = []
-            pos = m.start()
-            cur = left
+            cur = t[base:m.start()]
             for _ in range(3):
                 mm = re.search(r"([A-Za-z\u00C0-\u024F][A-Za-z\u00C0-\u024F'’]*\.?|[\u0900-\u0963\u0970-\u097F]+)[ \t]*$", cur)
                 if not mm:
@@ -520,7 +521,7 @@ class Detector:
                 if tok.lower() in gz.DOCTOR_PREFIX:
                     seq = []
                     break
-                seq.insert(0, (mm.start(1), mm.start(1) + len(tok)))
+                seq.insert(0, (base + mm.start(1), base + mm.start(1) + len(tok)))
                 cur = cur[:mm.start(1)]
                 if re.search(r"(?i)\b(?:dr|doctor)\.?\s*$", cur):
                     seq = []
@@ -588,14 +589,15 @@ class Detector:
             spans.append(Span(m.start(1), m.start(1) + len(name), "NAME", role="relative", value=name, meta={"src": "chat"}))
         # "<Name> <phone>" or "<Name>, Mob. <phone>"
         for m in RE_PHONE.finditer(fold(t)):
-            left = t[:m.start()]
+            lb = max(0, m.start() - 80)              # bounded look-back keeps this linear
+            left = t[lb:m.start()]
             mm = re.search(r"((?:[A-Z][a-z]+\s+){0,2}[A-Z][a-z]+)\s*(?:,|-|:)?\s*(?:\(?(?:mob(?:ile)?|ph(?:one)?|m)\.?\)?\s*(?:no\.?)?\s*[:\-]?\s*)?$", left)
             if mm:
                 toks = mm.group(1).split()
                 toks_ok = [x for x in toks if is_name_token(x)]
                 if toks_ok and len(toks_ok) == len(toks) and (len(toks) >= 2 or gz.is_known_name_token(toks[0])):
                     if not re.search(r"(?i)\b(?:dr|doctor)\.?\s*$", left[:mm.start(1)]):
-                        spans.append(Span(mm.start(1), mm.end(1), "NAME", role="other", value=mm.group(1), meta={"src": "phone-adj"}))
+                        spans.append(Span(lb + mm.start(1), lb + mm.end(1), "NAME", role="other", value=mm.group(1), meta={"src": "phone-adj"}))
 
     def _address(self, t, f, spans, addr_ctx):
         for m in HOUSE_RE.finditer(t):

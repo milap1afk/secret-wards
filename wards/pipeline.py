@@ -47,6 +47,46 @@ TEHSIL_TEXT = re.compile(r"(Tehsil|Tahsil|Teh\.|तहसील)\s+(?!\[)(?:[A-Z
 DROP_KEY = object()   # sentinel: remove this JSON key from the output (only for optional elements)
 
 
+class TimeBudget(Exception):
+    pass
+
+
+class _budget:
+    """Per-file wall-clock budget (POSIX SIGALRM; a no-op where it is unavailable or off the main thread)."""
+
+    def __init__(self, seconds: float):
+        self.seconds = seconds
+        self.armed = False
+
+    def __enter__(self):
+        import signal
+        import threading
+        if self.seconds > 0 and hasattr(signal, "setitimer") and threading.current_thread() is threading.main_thread():
+            def _alarm(_signum, _frame):
+                raise TimeBudget()
+            self.prev = signal.signal(signal.SIGALRM, _alarm)
+            signal.setitimer(signal.ITIMER_REAL, self.seconds)
+            self.armed = True
+        return self
+
+    def __exit__(self, *exc):
+        if self.armed:
+            import signal
+            signal.setitimer(signal.ITIMER_REAL, 0)
+            signal.signal(signal.SIGALRM, self.prev)
+        return False
+
+
+FILE_SECONDS = float(POLICY.get("file_time_budget_s", 120))
+FILE_MAX_BYTES = int(POLICY.get("file_max_mb", 64)) * 1024 * 1024
+GLOBAL_SECONDS = float(POLICY.get("global_time_budget_s", 720))
+_T0 = time.monotonic()
+
+
+def _over_global() -> bool:
+    return time.monotonic() - _T0 > GLOBAL_SECONDS
+
+
 class Quarantine(Exception):
     pass
 
@@ -286,9 +326,19 @@ class Pipeline:
         for p in paths:
             rel = p.relative_to(self.inp).as_posix()
             try:
-                raw = p.read_bytes()
+                if p.stat().st_size > FILE_MAX_BYTES:
+                    raw = None
+                else:
+                    raw = p.read_bytes()
             except OSError:
                 self.jobs.append(FileJob(rel=rel, sha="", status="quarantined", reason="unreadable"))
+                continue
+            if raw is None:
+                h = hashlib.sha256()
+                with open(p, "rb") as fh:
+                    for chunk in iter(lambda: fh.read(1 << 20), b""):
+                        h.update(chunk)
+                self.jobs.append(FileJob(rel=rel, sha=h.hexdigest(), status="quarantined", reason="file_too_large"))
                 continue
             job = FileJob(rel=rel, sha=hashlib.sha256(raw).hexdigest())
             self.jobs.append(job)
@@ -579,13 +629,25 @@ class Pipeline:
         self.detector = Detector(self.lex)
         rid = 0
         for job in self.jobs:
-            for u in job.units:
-                rid += 1
-                u.ev = Evidence(rid=rid, file=u.file, loc=u.loc)
-                try:
-                    self._evidence(u)
-                except Exception:  # noqa: BLE001 - one odd record must not stop the release
-                    u.ev = Evidence(rid=rid, file=u.file, loc=u.loc, multi=True)
+            if job.status == "quarantined":
+                continue
+            mine = []
+            try:
+                with _budget(FILE_SECONDS):
+                    for u in job.units:
+                        rid += 1
+                        u.ev = Evidence(rid=rid, file=u.file, loc=u.loc)
+                        try:
+                            self._evidence(u)
+                        except TimeBudget:
+                            raise
+                        except Exception:  # noqa: BLE001 - one odd record must not stop the release
+                            u.ev = Evidence(rid=rid, file=u.file, loc=u.loc, multi=True)
+                        mine.append(u)
+            except TimeBudget:
+                job.status, job.reason, job.units = "quarantined", "time_budget_exceeded", []
+                continue
+            for u in mine:
                 self.units.append(u)
                 self.evidence.append(u.ev)
         # second lexicon: add names found by labels in free text
@@ -881,7 +943,12 @@ class Pipeline:
         for job in self.jobs:
             if job.status == "quarantined":
                 continue
+            if _over_global():
+                job.status, job.reason = "quarantined", "global_time_budget"
+                continue
+            dest = None
             try:
+              with _budget(FILE_SECONDS):
                 if job.fmt == "csv":
                     body = self._write_csv(job)
                 elif job.fmt in ("json", "jsonl"):
@@ -909,8 +976,11 @@ class Pipeline:
                         rec = {"file": job.out_rel, "loc": u.loc, "patient": u.psn}
                         records.append(rec)
                         self._unit_gen[(job.out_rel, u.loc)] = u.gen
-            except Exception as exc:  # noqa: BLE001
-                job.status, job.reason, job.out_rel = "quarantined", "sanitize_error_" + type(exc).__name__, ""
+            except Exception as exc:  # noqa: BLE001 - includes TimeBudget
+                job.status, job.out_rel = "quarantined", ""
+                job.reason = "time_budget_exceeded" if isinstance(exc, TimeBudget) else "sanitize_error_" + type(exc).__name__
+                if dest is not None and dest.exists():
+                    dest.unlink()            # never leave a file behind that the report calls quarantined
         return records
 
     # ---------- unit rendering core
@@ -930,9 +1000,16 @@ class Pipeline:
         spans = list(spans)
         # sweep: remaining occurrences of this unit's name tokens
         if sweep:
-            occupied = [(s.start, s.end) for s in spans]
+            import bisect
+            occ = sorted((s.start, s.end) for s in spans)
+            occ_starts = [a for a, _ in occ]
+            occ_ends = [b for _, b in occ]
+
+            def covered(a0, b0):
+                i = bisect.bisect_right(occ_starts, a0)
+                return (i > 0 and occ_ends[i - 1] > a0) or (i < len(occ_starts) and occ_starts[i] < b0)
             for m in TOKEN_RE.finditer(text):
-                if any(a <= m.start() < b or a < m.end() <= b for a, b in occupied):
+                if covered(m.start(), m.end()):
                     continue
                 tok = m.group(0).rstrip(".")
                 if len(tok) < 3 or tok.lower() in gz.NON_NAME_WORDS or tok.lower() in gz.HONORIFIC_SUFFIX:
