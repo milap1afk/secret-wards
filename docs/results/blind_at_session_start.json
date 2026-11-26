@@ -1,0 +1,6 @@
+{
+ "note": "Commit 27b5e28 (session start) on the blind holdout built by tools/blind_variant.py; leak/canary/medical/linking from the OFFICIAL kit/check_dev.py, attacks LOCAL (attack.py as of this session, before its birth-year fix).",
+ "blind_at_start": {"exit": 0, "seconds": 2.38, "peak_mb": 31.1, "contract": "OK", "leaked": "46/3273", "canaries": "2/7",
+  "medical_kept": "4669/4669", "link_P": "0.74", "link_R": "0.63", "link_F05": "0.71", "false_merges": "11", "raw_copies": "0",
+  "A1": "0.500", "A2A3": "0.185", "A4": "0.771", "A5": "0.667", "A6": "0.000", "A7": "0.000", "risk": "0.425"}
+}

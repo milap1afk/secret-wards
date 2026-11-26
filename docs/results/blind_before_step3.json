@@ -1,0 +1,24 @@
+{
+ "blind_now": {
+  "exit": 0,
+  "seconds": 2.32,
+  "peak_mb": 31.4,
+  "contract": "OK",
+  "leaked": "46/3273",
+  "leak_by_script": "?",
+  "canaries": "2/7",
+  "medical_kept": "4669/4669",
+  "link_P": "0.74",
+  "link_R": "0.63",
+  "link_F05": "0.71",
+  "false_merges": "11",
+  "raw_copies": "0",
+  "A1": "0.500",
+  "A2A3": "0.085",
+  "A4": "0.417",
+  "A5": "0.578",
+  "A6": "0.000",
+  "A7": "0.000",
+  "risk": "0.316"
+ }
+}
