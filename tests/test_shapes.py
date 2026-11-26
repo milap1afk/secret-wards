@@ -14,7 +14,7 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-NAMES = ["Tashi Namgyal Bhutia", "Lalita Majhi", "Sohan Murmu", "Bhola Hembram", "Kamli Soren", "Jaggu Oraon",
+NAMES = ["Basanti Hansda", "Mangal Kisku", "Tashi Namgyal Bhutia", "Lalita Majhi", "Sohan Murmu", "Bhola Hembram", "Kamli Soren", "Jaggu Oraon",
          "Phoolo Tirkey", "Kanhaiyalal Ojha", "Hiralal Rajak", "Vaidehi Mallah", "Rudransh Gaharwar", "Bhagirath Tomar", "Chandrakala Sengar", "Trilok Bundela", "Yamini Chandel", "Mangru Ram",
          "Omveer Jadon", "Fakira Sisodia", "Gangadin Parihar", "Nankau", "Pancham"]
 PHONES = ["984-1052799", "9811100022", "9800012345", "234567890123", "9876501234", "9876501299", "9812345670", "9812345671", "9811122233", "9800011122", "9800011199"]
@@ -51,6 +51,10 @@ def build(d: Path) -> None:
                                      encoding="utf-8")
     (d / "a/claims.txt").write_text("bill|uhid|patient_name|amount\nB1|KG-000931|Jaggu Oraon|9100\nB2|KG-000932|Phoolo Tirkey|5100\n",
                                     encoding="utf-8")
+    json.dump({"export": {"batches": [{"payload": {"visits": [
+        {"mrd_sankhya": "KG-000941", "rogi": "Basanti Hansda", "visit_date": "2026-02-01"},
+        {"mrd_sankhya": "KG-000942", "rogi": "Mangal Kisku", "visit_date": "2026-02-02"}]}}]}},
+        open(d / "a/deep_visits.json", "w", encoding="utf-8"))
     (d / "b/bomb.xml").write_text('<?xml version="1.0"?><!DOCTYPE lolz [<!ENTITY lol "lol">]><a>&lol;</a>', encoding="utf-8")
 
 
@@ -81,7 +85,8 @@ def main() -> int:
         pre = {x["loc"]: x["patient"] for x in recs if x["file"].endswith("preamble.csv")}
         if sorted(pre) != ["row:0", "row:1"] or pre.get("row:0") == pre.get("row:1"):
             fails.append(f"preamble CSV rows wrong: {sorted(pre)}")
-        for fname, want in (("visits.jsonl", ["row:1", "row:2"]), ("results.txt", ["row:0", "row:1"]),
+        for fname, want in (("deep_visits.json", ["/export/batches/0/payload/visits/0", "/export/batches/0/payload/visits/1"]),
+                            ("visits.jsonl", ["row:1", "row:2"]), ("results.txt", ["row:0", "row:1"]),
                             ("claims.txt", ["row:0", "row:1"])):
             got = {x["loc"]: x["patient"] for x in recs if x["file"].endswith(fname)}
             if [k for k in want if k not in got] or len({got.get(k) for k in want}) != len(want):
