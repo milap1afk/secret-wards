@@ -20,7 +20,13 @@ _SECRET = os.environ.get("RAKSHA_SECRET", "").encode("utf-8")
 _ALPHABET = "ABCDEFGHJKMNPQRSTVWXYZ"  # letters only: a pseudonym must never look like a PIN, age or phone
 
 
+class MissingSecret(RuntimeError):
+    pass
+
+
 def _mac(*parts: str) -> bytes:
+    if not _SECRET.strip():
+        raise MissingSecret("RAKSHA_SECRET is empty")
     msg = "\x1f".join(parts).encode("utf-8")
     return hmac.new(_SECRET, msg, hashlib.sha256).digest()
 
@@ -41,6 +47,11 @@ def pseudonym(cluster_key: str) -> str:
 def surrogate_id(kind: str, value: str) -> str:
     """Stable surrogate for an identifier we must remove but whose joins are useful (e.g. IPD no)."""
     return f"{kind}-" + _code(_mac("sid", kind, value), 6)
+
+
+def fhir_id(old: str) -> str:
+    """Deterministic, secret-keyed replacement for a FHIR logical id (valid id chars, <= 64)."""
+    return "r" + _code(_mac("fhir-id", old), 13).lower()
 
 
 def shift_days(key: str) -> int:

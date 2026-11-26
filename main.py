@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Secret Wards privacy firewall. Usage: python main.py --input <dir> --output <empty dir>"""
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -14,6 +15,10 @@ def main() -> int:
     ap.add_argument("--input", required=True)
     ap.add_argument("--output", required=True)
     a = ap.parse_args()
+    if not os.environ.get("RAKSHA_SECRET", "").strip():
+        # fail closed: an empty HMAC key would make pseudonyms and date shifts guessable
+        sys.stderr.write("error: RAKSHA_SECRET is not set; refusing to run (nothing was written)\n")
+        return 2
     try:
         return run(Path(a.input), Path(a.output))
     except Exception as exc:  # noqa: BLE001 - never print content, only the error type

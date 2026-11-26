@@ -26,7 +26,7 @@ from . import gazetteer as gz
 from .detect import Detector, Lexicon, Span, TOKEN_RE, resolve, is_name_token
 from .link import Evidence, Linker, name_tokens, tok_keys
 from .policy import POLICY
-from .privacy import (age_band, pin_prefix, pseudonym, shift_date_string, shift_days, surrogate_id,
+from .privacy import (age_band, fhir_id, pin_prefix, pseudonym, shift_date_string, shift_days, surrogate_id,
                       parse_any_date)
 from . import rare as rare_mod
 from . import vault
@@ -1139,7 +1139,11 @@ class Pipeline:
                 leaf_map[tuple(lf.path)] = (lf, u, sweep, ctx)
         file_unit = job.file_unit or Unit(job.rel, "@file", "file")
 
+        is_fhir = isinstance(data, dict) and isinstance(data.get("resourceType"), str)
+
         def rebuild(node, path):
+            if is_fhir and isinstance(node, str) and path and path[-1] in ("id", "fullUrl", "reference"):
+                return fhir_map_value(path[-1], node)
             if isinstance(node, dict):
                 out = {}
                 for k, v in node.items():
@@ -1293,6 +1297,37 @@ def _find_record_list(data):
                     nxt.append((path + (k,), v))
         frontier = nxt
     return None
+
+
+_UUID_FULL = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
+_REF_TAIL = re.compile(r"^(?P<base>(?:.*/)?)(?P<type>[A-Z][A-Za-z]+)/(?P<id>[A-Za-z0-9\-.]{1,64})(?P<hist>/_history/[^/]+)?$")
+
+
+def fhir_map_id(old: str) -> str:
+    """UUID ids carry no identity and stay; any other logical id is replaced by a keyed id."""
+    return old if _UUID_FULL.match(old) else fhir_id(old)
+
+
+def fhir_map_value(key: str, v: str) -> str:
+    """Rewrite Resource.id, Bundle.entry.fullUrl and Reference.reference through one keyed mapping,
+    so every reference that resolved before still resolves after."""
+    if key == "id":
+        return fhir_map_id(v)
+    if v.startswith("#"):
+        return "#" + fhir_map_id(v[1:]) if v[1:] else v
+    if v.lower().startswith("urn:uuid:"):
+        tail = v[9:]
+        if _UUID_FULL.match(tail):
+            return v
+        h = fhir_id(tail)[1:].ljust(32, "0")[:32]
+        return "urn:uuid:" + "-".join((h[:8], h[8:12], h[12:16], h[16:20], h[20:32]))
+    m = _REF_TAIL.match(v)
+    if m:
+        base = m.group("base")
+        if re.search(r"\d{5,}", base):          # identifiers in the server path are removed too
+            base = re.sub(r"\d{5,}", lambda x: fhir_id(x.group(0)), base)
+        return f"{base}{m.group('type')}/{fhir_map_id(m.group('id'))}{m.group('hist') or ''}"
+    return fhir_map_id(v) if re.fullmatch(r"[A-Za-z0-9\-.]{1,64}", v) else v
 
 
 def _ptr_escape(s: str) -> str:

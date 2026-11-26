@@ -21,6 +21,9 @@ pip install -r requirements.txt                 # optional: only for the encrypt
 RAKSHA_SECRET=<secret> python main.py --input <input dir> --output <empty output dir>
 ```
 
+`RAKSHA_SECRET` is required. If it is missing or empty the program exits with code 2 and writes nothing:
+an empty HMAC key would make pseudonyms and date shifts guessable.
+
 The output contains `sanitized/` (same tree and formats), `report.json` and `records.jsonl`.
 `raksha.toml` is the evaluator entry point. Python 3.9+. No network, no models, no GPU.
 
@@ -88,6 +91,9 @@ Union-find over records:
 
 Clusters never merge across a hard conflict (different Aadhaar, DOB or gender). Names are compared with
 phonetic keys that are identical for `Mohammad / Mohd / Md. / मोहम्मद` and `Reena / Rina / रीना`.
+FHIR logical ids that are not plain UUIDs (e.g. `Patient/SNJ-26-064127`) are replaced by a keyed HMAC id,
+and every `fullUrl` and `reference` pointing at them is rewritten through the same mapping, so references
+still resolve. UUID ids carry no identity and are kept.
 Pseudonyms are `PSN-` + 6 letters derived with HMAC-SHA256 keyed by `RAKSHA_SECRET`. They cannot be
 inverted by hashing a dictionary of IDs, they change with the secret, and they are letters only so they
 never look like a PIN, phone or age.
@@ -113,42 +119,73 @@ never look like a PIN, phone or age.
 * `report.json` identifies files by SHA-256, never by name. Renamed files (a name or phone in the file
   name) are declared there.
 
-## Measured results (local re-implementation of the published scoring)
+## Measured results
 
-| Measure | Practice data | Unseen-format variant¹ |
-|---|---|---|
-| PII recall (overall / Hindi / Hinglish) | 1.000 / 1.000 / 1.000 | 1.000 / 1.000 / 1.000 |
-| contextual precision (doctors, doses, C/O, eponyms…) | 1.000 | 1.000 |
-| clinical values kept | 99.97 % | 99.97 % |
-| linking precision / recall / F0.5 | 1.000 / 1.000 / 1.000 | 1.000 / 1.000 / 1.000 |
-| canaries leaked | 0 / 4 | 0 / 4 |
-| run time / peak memory | 2.4 s / 31 MB (20× data: 28 s / 330 MB) | 2.4 s / 31 MB |
-| repeat run, same secret | byte-identical | byte-identical |
-| run with a different secret | 0 pseudonyms shared | – |
+Every number below says what produced it. **Official** = the kit's own scripts (`check_dev.py`,
+`validate_output.py`, `check_submission.py`); those are practice self-checks, not the hidden-data evaluator.
+**Local** = our own approximations in `tools/` and `tests/`, written from the published `SCORING.md` and
+`ATTACKS.md`; they are guides, not official scores.
 
-¹ `tools/chaos.py`: Latin patient and relative names replaced by names absent from our gazetteer (spelling
-variants map to one new name; names that also occur in Devanagari keep their spelling so the test stays
-consistent), renamed headers, JSON keys and labels, changed ID and phone formats. A harsher variant that
-renamed all 115 name tokens kept detection at 1.000 and linking precision at 1.000.
+| Measure | Practice data | Unseen-format variant¹ | Source |
+|---|---|---|---|
+| contract | CONTRACT OK | CONTRACT OK | official `validate_output.py` |
+| personal data still visible | 0 / 3230 | 0 / 3230 | official `check_dev.py` |
+| leaked by script (Latin / Devanagari / Hinglish) | 0 % / 0 % / 0 % | 0 % / 0 % / 0 % | official `check_dev.py` |
+| canaries found | 0 / 4 | 0 / 4 | official `check_dev.py` |
+| medical values kept | 4855 / 4855 | 4855 / 4855 | official `check_dev.py` |
+| linking precision / recall / F0.5 | 1.00 / 1.00 / 1.00 | 1.00 / 1.00 / 1.00 | official `check_dev.py` |
+| raw copies of unsupported files | 0 | 0 | official `check_dev.py` |
+| same secret twice → identical; different secret → different; secret never written; input untouched | pass | – | official `check_submission.py --run` |
+| contextual precision (doctors, doses, C/O, eponyms…) | 1.000 | 1.000 | local `tools/score.py` |
+| token retention (over-redaction) | 0.986 | – | local `tools/retention.py` |
+| run time / peak memory | 2.4 s / 31 MB; 20× data 28 s / 330 MB | 2.4 s / 31 MB | `report.json`, `/usr/bin/time` |
 
-**Re-identification risk** (`tools/attack.py`, our implementation of A2–A5 from `ATTACKS.md`, relative to
-the same attack on raw data):
+¹ `tools/chaos.py` builds the variant and its answer key from the practice data (the checkers are official,
+the dataset is ours). It replaces all 115 Latin name tokens of patients and relatives with names absent from
+our gazetteer, writes the **same new names in Devanagari** wherever the original appeared in Devanagari
+(51 tokens, via a separate Latin→Devanagari transliterator in the test tool, not the sanitiser's), maps
+spelling variants (Harish/Hareesh) to one new name, renames headers, JSON keys and text labels, and changes
+ID and phone formats. Limitations: names are drawn from one small pool; Hinglish word order, file layouts
+and date formats are not changed; the hidden data may vary things this variant does not.
+
+**Re-identification risk** (local `tools/attack.py`, an approximation of A1–A7 in `ATTACKS.md`; A2–A5 are
+relative to the same attack on raw data, combined with the `SCORING.md` weights):
+
+| Attack | Practice data |
+|---|---|
+| A1 direct exposure (patients with a surviving direct identifier or full name) | 0.000 (raw 1.000) |
+| A2/A3 record linkage | 0.090 of raw |
+| A4 profile re-identification | 0.396 of raw |
+| A5 targeted (known facts) | 0.606 of raw |
+| A6 pseudonym inversion (hashes, base64, reversal, digit cores of originals) | 0.000 |
+| A7 cross-release (same pseudonym or same shifted date under another secret) | 0.000 |
+| combined risk → resistance | 0.218 → 0.782 (before the utility coupling) |
+
+`tests/test_attack_checks.py` verifies that A1, A6 and A7 do fire on deliberately broken releases (a surviving
+phone, SHA-256(UHID) pseudonyms, an identical second release).
+
+Policy choice, measured with the same tool:
 
 | Policy | Record linkage | Profile re-id | Targeted |
 |---|---|---|---|
 | tehsil, shifted DOB, 5-year bands | 0.20 | 0.77 | 0.60 |
 | **district, birth year, 10-year bands (chosen)** | **0.09** | **0.40** | **0.61** |
 
-The chosen policy costs about 0.2 points of generalisation credit and removes about a third of the attack
-surface. Generalising rare ICD codes to their chapter was measured too: it cost 1.4 % of clinical probes
-and gave no attack gain, so it is off by default (`rare_k: 0`).
+Generalising rare ICD codes to their chapter cost 1.4 % of clinical probes for no measured attack gain, so it
+is off (`rare_k: 0`). Coarser 20-year bands or dropping the PIN prefix lowered profile re-id only to about
+0.29 and did not move A5 in our approximation, so we did not trade that much research value for it.
 
-## Tools (development only, practice data)
+## Tests and tools (development only)
 ```bash
-python3 tools/score.py  --dev kit/dev --output out       # detection, utility, linkage, canaries, leak list
-python3 tools/attack.py --dev kit/dev --output out       # re-identification attacks vs raw
-python3 tools/chaos.py  --dev kit/dev --out chaos        # build the unseen-format variant
-python3 tools/linkdiag.py out                            # patients split across pseudonyms
+python3 tests/test_detect.py        # 59 adversarial detector cases (remove / keep)
+python3 tests/test_fields.py        # 89 unseen header variants
+python3 tests/test_shapes.py        # end-to-end: unusual file shapes, XML/CDA, DTD refusal
+python3 tests/test_fhir_ids.py      # identifier-like FHIR ids/references: removed, keyed, still resolving
+python3 tests/test_secret.py        # missing/empty RAKSHA_SECRET fails closed; secret never written
+python3 tests/test_attack_checks.py # positive controls for local A1/A6/A7 (needs kit/dev)
+python3 tools/score.py  --dev kit/dev --output out
+python3 tools/attack.py --dev kit/dev --output out --output2 out_other_secret
+python3 tools/chaos.py  --dev kit/dev --out chaos
 ```
 
 ## Models
@@ -163,3 +200,5 @@ union-find only.
 * PDF and images are quarantined rather than sanitised (no OCR).
 * Profile-level risk is still dominated by district + gender + age band for patients with many records.
   Coarser bands would trade research value for privacy.
+* All attack numbers are local approximations; the official attacker and the hidden datasets are not
+  public, and A5's use of exact stay lengths (which we keep for clinical utility) is not modelled closely.

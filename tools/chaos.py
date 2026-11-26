@@ -50,6 +50,49 @@ ID_MAP = [(r"SNJ/(\d{2})/(\d{6})", r"SNJH-\1-\2"), (r"JJH-(\d{7})", r"JJCH/\1"),
           (r"DHH(\d{4})-(\d{6})", r"HRD/\1/\2")]
 
 
+_C2 = [("chh", "छ"), ("kh", "ख"), ("gh", "घ"), ("ch", "च"), ("jh", "झ"), ("th", "थ"), ("dh", "ध"), ("ph", "फ"),
+       ("bh", "भ"), ("sh", "श"), ("k", "क"), ("g", "ग"), ("j", "ज"), ("t", "त"), ("d", "द"), ("n", "न"), ("p", "प"),
+       ("b", "ब"), ("m", "म"), ("y", "य"), ("r", "र"), ("l", "ल"), ("v", "व"), ("w", "व"), ("s", "स"), ("h", "ह"),
+       ("f", "फ़"), ("z", "ज़"), ("q", "क़"), ("x", "क्स"), ("c", "क")]
+_V = [("aa", "आ", "ा"), ("ee", "ई", "ी"), ("ii", "ई", "ी"), ("oo", "ऊ", "ू"), ("uu", "ऊ", "ू"), ("ai", "ऐ", "ै"),
+      ("au", "औ", "ौ"), ("a", "अ", ""), ("i", "इ", "ि"), ("u", "उ", "ु"), ("e", "ए", "े"), ("o", "ओ", "ो")]
+
+
+def latin_to_deva(word):
+    """Simple Hindi-style transliteration of a Latin name (final -a written long, n/m before consonant -> anusvara)."""
+    w = word.lower()
+    out, i, prev_cons = [], 0, False
+    while i < len(w):
+        for lat, dev, mat in _V:
+            if w.startswith(lat, i):
+                if lat == "a" and i == len(w) - 1 and prev_cons:
+                    out.append("ा")
+                elif prev_cons:
+                    out.append(mat)
+                else:
+                    out.append(dev)
+                i += len(lat)
+                prev_cons = False
+                break
+        else:
+            for lat, dev in _C2:
+                if w.startswith(lat, i):
+                    nxt = w[i + len(lat):i + len(lat) + 1]
+                    if lat in ("n", "m") and nxt and nxt not in "aeiou" and prev_cons is False and out:
+                        out.append("ं")
+                        i += len(lat)
+                        break
+                    if prev_cons:
+                        out.append("्")
+                    out.append(dev)
+                    i += len(lat)
+                    prev_cons = True
+                    break
+            else:
+                i += 1
+    return "".join(out)
+
+
 def case_like(src, new):
     if src.isupper():
         return new.upper()
@@ -81,16 +124,7 @@ def main():
                     for t in e.get("tokens", []):
                         if re.fullmatch(r"[a-z]{3,}", t) and t not in gz.GENERIC_NAME_TOKENS and t not in ("asha", "bhaiya", "sahab", "behenji", "amma", "didi"):
                             toks.add(t)
-    # names that also occur in Devanagari keep their spelling (we cannot re-transliterate them consistently)
     from wards.translit import name_key
-    deva_keys = set()
-    for f in truth["files"].values():
-        for u in f["units"].values():
-            for e in u["entities"]:
-                if e.get("match") == "name" and e.get("script") == "deva":
-                    for t in e.get("tokens", []):
-                        deva_keys.add(name_key(t))
-    toks = {t for t in toks if name_key(t) not in deva_keys}
     mapping = {}
     by_key = {}
     gi = si = 0
@@ -109,9 +143,26 @@ def main():
             gi += 1
         by_key[k] = mapping[t]
     rx = re.compile(r"(?<![A-Za-z])(" + "|".join(sorted((re.escape(k) for k in mapping), key=len, reverse=True)) + r")(?![A-Za-z])", re.I)
+    # Devanagari tokens of the same names -> the NEW name written in Devanagari
+    lat_by_key = {}
+    for t in mapping:
+        lat_by_key.setdefault(name_key(t), t)
+    deva_map = {}
+    for f in truth["files"].values():
+        for u in f["units"].values():
+            for e in u["entities"]:
+                if e.get("match") == "name" and e.get("script") == "deva":
+                    for t in e.get("tokens", []):
+                        lt = lat_by_key.get(name_key(t))
+                        if lt and t not in deva_map:
+                            deva_map[t] = latin_to_deva(mapping[lt])
+    drx = re.compile(r"(?<![\u0900-\u097F])(" + "|".join(sorted((re.escape(k) for k in deva_map), key=len, reverse=True)) + r")(?![\u0900-\u097F])") if deva_map else None
 
     def sub_names(s):
-        return rx.sub(lambda m: case_like(m.group(0), mapping[m.group(0).lower()]), s)
+        s = rx.sub(lambda m: case_like(m.group(0), mapping[m.group(0).lower()]), s)
+        if drx is not None:
+            s = drx.sub(lambda m: deva_map[m.group(0)], s)
+        return s
 
     def transform(text, fmt):
         text = sub_names(text)
@@ -166,14 +217,14 @@ def main():
             for e in u["entities"]:
                 e["surface"] = tsurf(e["surface"])
                 if e.get("tokens"):
-                    e["tokens"] = [mapping.get(t, t).lower() for t in e["tokens"]]
+                    e["tokens"] = [deva_map.get(t, mapping.get(t, t).lower() if t in mapping else t) for t in e["tokens"]]
             for p in u.get("preserve", []):
                 p["text"] = tsurf(p["text"])
         new_files[new_rel] = f2
     truth["files"] = new_files
     (out / "truth").mkdir(parents=True, exist_ok=True)
     (out / "truth" / "truth.json").write_text(json.dumps(truth, ensure_ascii=False), encoding="utf-8")
-    print(f"mapped {len(mapping)} name tokens; files {len(new_files)}")
+    print(f"mapped {len(mapping)} Latin name tokens and {len(deva_map)} Devanagari name tokens; files {len(new_files)}")
 
 
 if __name__ == "__main__":

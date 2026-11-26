@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
-"""Approximate re-implementation of the published attack arena (docs/ATTACKS.md) for tuning.
+"""LOCAL APPROXIMATION of the published attack arena (kit docs/ATTACKS.md + docs/SCORING.md).
+It is NOT the official evaluator (that code is published only after the results).
 
-  python3 tools/attack.py --dev kit/dev --output out        (also runs the attack on raw input)
+  python3 tools/attack.py --dev kit/dev --output out [--output2 out_other_secret]
 
-A2/A3 record linkage, A4 profile aggregation, A5 targeted known-facts attack.
-Each attack is run on our release and on the raw input; the ratio is what the arena scores.
+A1 direct exposure, A2/A3 record linkage, A4 profile aggregation, A5 targeted known-facts attack,
+A6 pseudonym inversion, A7 cross-release linkability (needs --output2: same input, different secret).
+A2-A5 are run on the release and on the raw input; the arena scores the ratio.
 """
+import base64 as _b64
+import hashlib as _hl
 import argparse
 import collections
 import csv
@@ -215,24 +219,187 @@ def run(dev, root, use_output, truth, reg, vocab):
     return sum(a3) / max(len(a3), 1), a4, a5
 
 
+def release_blob(root):
+    parts = []
+    for p in sorted(root.rglob("*")):
+        if p.is_file() and "quarantine" not in p.parts:
+            parts.append(p.name)
+            try:
+                parts.append(p.read_text(encoding="utf-8"))
+            except UnicodeDecodeError:
+                pass
+    return "\n".join(parts)
+
+
+def psn_by_patient(truth, root):
+    rep = json.loads((root / "report.json").read_text())
+    out2in = {}
+    file_map = collections.defaultdict(list)
+    for rel, f in truth["files"].items():
+        file_map[f["sha256"]].append(rel)
+    for e in rep["files"]:
+        if e.get("output"):
+            c = file_map.get(e["input_sha256"], [])
+            same = [x for x in c if "sanitized/" + x == e["output"]]
+            out2in[e["output"]] = same[0] if same else (c[0] if c else None)
+    got = collections.defaultdict(collections.Counter)
+    for line in (root / "records.jsonl").read_text().splitlines():
+        r = json.loads(line)
+        rel = out2in.get(r["file"])
+        if not rel or not r["patient"]:
+            continue
+        un = truth["files"][rel]["units"].get(r["loc"])
+        if un and un.get("patient"):
+            got[un["patient"]][r["patient"]] += 1
+    return {pt: c.most_common(1)[0][0] for pt, c in got.items()}
+
+
+def originals(truth):
+    """patient -> list of original identifier strings (UHIDs, Aadhaar, phone, ABHA, Latin full name)."""
+    pid2pt = {v["pid"]: k for k, v in truth["patients"].items()}
+    orig = collections.defaultdict(set)
+    for pt, v in truth["patients"].items():
+        for ids in v["uhids"].values():
+            orig[pt] |= set(ids)
+    for f in truth["files"].values():
+        for u in f["units"].values():
+            for e in u["entities"]:
+                pt = pid2pt.get(e.get("person"))
+                if not pt or e.get("role") != "patient":
+                    continue
+                if e["type"] in ("AADHAAR", "PHONE", "ABHA_NUMBER") or (e["type"] == "PATIENT_NAME" and e.get("full") and e["script"] == "latin"):
+                    orig[pt].add(e["surface"])
+    return orig
+
+
+def transforms(x):
+    out = {x, x.lower(), x.upper(), re.sub(r"\D", "", x), x[::-1], x.lower()[::-1]}
+    for v in list(out):
+        if not v:
+            continue
+        b = v.encode("utf-8")
+        for h in (_hl.md5, _hl.sha1, _hl.sha256, _hl.sha512):
+            out.add(h(b).hexdigest())
+        out.add(_b64.b64encode(b).decode().rstrip("="))
+    return {t for t in out if t}
+
+
+def a1_direct(truth, root, blob=None):
+    blob = fold(release_blob(root) if blob is None else blob)
+    digits = re.sub(r"(?<=\d)[\s\-./]+(?=\d)", "", blob)
+    pid2pt = {v["pid"]: k for k, v in truth["patients"].items()}
+    exposed, pts = set(), set(truth["patients"])
+    for f in truth["files"].values():
+        for u in f["units"].values():
+            for e in u["entities"]:
+                pt = pid2pt.get(e.get("person"))
+                if not pt or not e.get("critical"):
+                    continue
+                if e.get("match") == "digits":
+                    k = e.get("key") or re.sub(r"\D", "", e["surface"])
+                    # allow a country-code / trunk prefix (+91 / 0) glued on once separators are removed
+                    if re.search(r"(?<!\d)(?:91|0|091)?" + re.escape(k) + r"(?!\d)", digits):
+                        exposed.add(pt)
+                elif e.get("full") and len(e.get("tokens", [])) >= 2:
+                    if re.search(r"(?<![\w])" + r"\s+".join(re.escape(t) for t in e["tokens"]) + r"(?![\w])", blob):
+                        exposed.add(pt)
+                elif e.get("match") != "name":
+                    k = fold(e["surface"]).strip()
+                    if k and k in blob:
+                        exposed.add(pt)
+    return len(exposed) / max(len(pts), 1)
+
+
+def a6_inversion(truth, root):
+    psn = psn_by_patient(truth, root)
+    orig = originals(truth)
+    inv = 0
+    for pt, p in psn.items():
+        code = p.split("-", 1)[-1].lower()
+        full = p.lower()
+        hit = False
+        for o in orig.get(pt, ()):
+            core = re.sub(r"\D", "", o)
+            if len(core) >= 5 and core in re.sub(r"\D", "", p):
+                hit = True
+            for t in transforms(o):
+                tl = t.lower()
+                for cand in (full, code):
+                    if len(cand) >= 6 and (cand == tl or (len(cand) >= 8 and tl.startswith(cand)) or tl.startswith(cand) and len(cand) >= 8):
+                        hit = True
+        inv += hit
+    return inv / max(len(psn), 1), len(psn)
+
+
+def a7_cross(truth, root, root2):
+    p1, p2 = psn_by_patient(truth, root), psn_by_patient(truth, root2)
+    common = [pt for pt in p1 if pt in p2]
+    same_psn = sum(1 for pt in common if p1[pt] == p2[pt]) / max(len(common), 1)
+    rep1 = json.loads((root / "report.json").read_text())
+    rep2 = json.loads((root2 / "report.json").read_text())
+    o1 = {e["input_sha256"]: e["output"] for e in rep1["files"] if e.get("output")}
+    o2 = {e["input_sha256"]: e["output"] for e in rep2["files"] if e.get("output")}
+    date_rx = re.compile(r"\d{4}-\d\d-\d\d|\d{1,2}[/.\-]\d{1,2}[/.\-]\d{2,4}")
+    stable = total = 0
+    for rel, f in truth["files"].items():
+        a, b = o1.get(f["sha256"]), o2.get(f["sha256"])
+        if not a or not b:
+            continue
+        for loc, un in f["units"].items():
+            if loc.startswith("@") or not un.get("dates"):
+                continue
+            tin = load_unit_text(dev_root / "input" / rel, f["format"], loc) or ""
+            t1 = load_unit_text(root / a, f["format"], loc) or ""
+            t2 = load_unit_text(root2 / b, f["format"], loc) or ""
+            raw_dates = set(date_rx.findall(tin))
+            d1 = set(date_rx.findall(t1)) - raw_dates
+            d2 = set(date_rx.findall(t2)) - raw_dates
+            if not d1 and not d2:
+                continue
+            total += 1
+            stable += bool(d1 & d2)
+    same_dates = stable / max(total, 1)
+    return max(same_psn, same_dates), same_psn, same_dates
+
+
 def main():
+    global dev_root
     ap = argparse.ArgumentParser()
     ap.add_argument("--dev", default="kit/dev")
     ap.add_argument("--output", default="out")
+    ap.add_argument("--output2", default="", help="second run of the same input with a DIFFERENT secret (for A7)")
     a = ap.parse_args()
+    dev_root = Path(a.dev)
     dev, out = Path(a.dev), Path(a.output)
     truth = json.loads((dev / "truth" / "truth.json").read_text(encoding="utf-8"))
     reg = load_registry(dev)
     vocab = {k: {fold(r[k]) for r in reg if r[k]} for k in ("district", "tehsil", "village")}
     raw = run(dev, out, False, truth, reg, vocab)
     rel = run(dev, out, True, truth, reg, vocab)
+    print("LOCAL APPROXIMATION of the attack arena (not the official evaluator)")
+    a1 = a1_direct(truth, out)
+    print(f"A1 direct exposure      share of patients exposed {a1:.3f}  (raw {a1_direct_raw(truth, dev):.3f})")
     names = ["A2/A3 record linkage", "A4 profile re-id", "A5 targeted"]
-    risks = []
+    ratios = []
     for n, r0, r1 in zip(names, raw, rel):
-        ratio = r1 / r0 if r0 else 0
-        risks.append(min(ratio, 1))
-        print(f"{n:22} raw {r0:.3f}  release {r1:.3f}  ratio {ratio:.3f}")
-    print(f"mean risk (A2-A5 only) {sum(risks) / len(risks):.3f}")
+        ratio = min(r1 / r0, 1) if r0 else 0
+        ratios.append(ratio)
+        print(f"{n:22}  raw {r0:.3f}  release {r1:.3f}  ratio {ratio:.3f}")
+    a6, npsn = a6_inversion(truth, out)
+    print(f"A6 pseudonym inversion  {a6:.3f}  ({npsn} pseudonymised patients checked)")
+    comps = [(0.20, a1), (0.20, ratios[0]), (0.20, ratios[1]), (0.20, ratios[2]), (0.10, a6)]
+    if a.output2:
+        a7, sp, sd = a7_cross(truth, out, Path(a.output2))
+        print(f"A7 cross-release        {a7:.3f}  (same pseudonym {sp:.3f}, same shifted dates {sd:.3f})")
+        comps.append((0.10, a7))
+    else:
+        print("A7 cross-release        skipped (pass --output2 with a run under a different secret)")
+    risk = sum(w * v for w, v in comps) / sum(w for w, _ in comps)
+    print(f"combined risk {risk:.3f} -> resistance {1 - risk:.3f}  (SCORING.md weights; before the utility coupling)")
+
+
+def a1_direct_raw(truth, dev):
+    return a1_direct(truth, None, blob=release_blob(dev / "input"))
 
 
 if __name__ == "__main__":
