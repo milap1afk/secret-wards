@@ -151,14 +151,14 @@ Every number below says what produced it. **Official** = the kit's own scripts (
 | same secret twice → identical; different secret → different; secret never written; input untouched | pass | – | official `check_submission.py --run` |
 | contextual precision (doctors, doses, C/O, eponyms…) | 1.000 | 1.000 | local `tools/score.py` |
 | token retention (over-redaction) | 0.986 | – | local `tools/retention.py` |
-| FHIR structure (ids, required elements, value sets, date/instant syntax, base64, references) | 19/19 bundles, 0 new issues | 19/19, 0 new issues | local `tools/fhir_check.py`¹ |
+| FHIR structure (ids, required elements, value sets, date/instant syntax, base64, references) | 19/19 bundles, 0 new issues | 19/19, 0 new issues | local `tools/fhir_check.py`² |
 | run time / peak memory | 2.4 s / 31 MB; 20× data 28 s / 330 MB | 2.4 s / 31 MB | `report.json`, `/usr/bin/time` |
 
-¹ The kit ships no FHIR validator (the official one, `raksha_eval/scoring/fhir.py`, is not public), so FHIR
+² The kit ships no FHIR validator (the official one, `raksha_eval/scoring/fhir.py`, is not public), so FHIR
 validity is local only: `tools/fhir_check.py` reports 0 issues on the organisers' own input bundles (sanity)
 and `tests/test_fhir_valid.py` confirms it flags 10 kinds of breakage.
 
-The unseen-format variant is built by `tools/chaos.py` from the practice data (the checkers are official,
+¹ The unseen-format variant is built by `tools/chaos.py` from the practice data (the checkers are official,
 the dataset and its answer key are ours). It replaces all 115 Latin name tokens of patients and relatives with names absent from
 our gazetteer, writes the **same new names in Devanagari** wherever the original appeared in Devanagari
 (51 tokens, via a separate Latin→Devanagari transliterator in the test tool, not the sanitiser's), maps
