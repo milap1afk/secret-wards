@@ -87,7 +87,7 @@ class Evidence:
 
 
 class _Cluster:
-    __slots__ = ("members", "name_keys", "given_keys", "rel_keys", "dob", "aadhaar", "gender", "ages", "villages")
+    __slots__ = ("members", "name_keys", "given_keys", "rel_keys", "dob", "aadhaar", "gender", "ages", "villages", "anchored")
 
     def __init__(self, ev: Evidence):
         self.members = [ev.rid]
@@ -99,6 +99,7 @@ class _Cluster:
         self.gender = set(ev.gender)
         self.ages = list(ev.ages)
         self.villages = set(ev.villages)
+        self.anchored = bool(ev.strong() or ev.phones)
         for n in ev.names + ev.weak_names:
             ks = tok_keys(n)
             self.name_keys |= ks
@@ -116,6 +117,7 @@ class _Cluster:
         self.gender |= o.gender
         self.ages += o.ages
         self.villages |= o.villages
+        self.anchored = self.anchored or o.anchored
 
 
 def _conflict(a: _Cluster, b: _Cluster, *, strict_names: bool) -> bool:
@@ -125,7 +127,7 @@ def _conflict(a: _Cluster, b: _Cluster, *, strict_names: bool) -> bool:
         return True
     if a.gender and b.gender and not (a.gender & b.gender):
         return True
-    if a.ages and b.ages and min(abs(x - y) for x in a.ages for y in b.ages) > 2:
+    if strict_names and a.ages and b.ages and min(abs(x - y) for x in a.ages for y in b.ages) > 3:
         return True
     if a.name_keys and b.name_keys and not (a.name_keys & b.name_keys):
         return True
@@ -222,6 +224,9 @@ class Linker:
                         clue = True
                     if clue:
                         matches.append(o)
+                anchored = [o for o in matches if self.cl[o].anchored]
+                if len(anchored) == 1 and (c.anchored is False or len(matches) == 1):
+                    matches = anchored
                 if len(matches) == 1:
                     # uniqueness the other way round: the match must not also fit another cluster
                     o = matches[0]

@@ -165,6 +165,8 @@ ROLE_AFTER = re.compile(r"(?i)^\s*\((attendant|relative|husband|wife|son|daughte
 CHAT_SENDER = re.compile(r"^\[[^\]]{4,40}\]\s*([^:\n]{2,40}):", re.M)
 
 # ------------------------------------------------------------------ protected contexts
+RE_UUID = re.compile(r"(?<![0-9a-f])[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?![0-9a-f])")
+RE_HEX = re.compile(r"(?<![0-9a-z])[0-9a-f]{16,}(?![0-9a-z])")
 DOCTOR_RE = re.compile(
     r"(?<![A-Za-z])(?:Dr|DR|dr|Doctor|Prof)\.?\s*(?:(?:[A-Z]\.\s*){1,3})?[A-Z][A-Za-z]+(?:\s+(?:[A-Z]\.\s*)?[A-Z][A-Za-z]+){0,3}"
     r"|(?:डॉ|डा|डॉक्टर)\.?\s*[\u0900-\u097F]+(?:\s+[\u0900-\u097F]+){0,2}"
@@ -311,6 +313,11 @@ class Detector:
 
     # -------------------------------------------------------------- layers
     def _protect(self, t, f, spans):
+        for m in RE_UUID.finditer(f):
+            spans.append(Span(m.start(), m.end(), "PROTECT", value="uuid"))
+        for m in RE_HEX.finditer(f):
+            if re.search(r"[a-f]", m.group(0)) and re.search(r"\d", m.group(0)):
+                spans.append(Span(m.start(), m.end(), "PROTECT", value="hex"))
         for m in DOCTOR_RE.finditer(t):
             spans.append(Span(m.start(), m.end(), "PROTECT", value="doctor"))
         for m in ORG_RE.finditer(t):

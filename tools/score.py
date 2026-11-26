@@ -111,6 +111,7 @@ def main():
     truth = json.loads((dev / "truth" / "truth.json").read_text(encoding="utf-8"))
     report = json.loads((out / "report.json").read_text(encoding="utf-8"))
     by_sha = {f["input_sha256"]: f for f in report["files"]}
+    by_out = {f["output"]: f for f in report["files"] if f.get("output")}
 
     type_tot = collections.Counter(); type_leak = collections.Counter()
     script_tot = collections.Counter(); script_leak = collections.Counter()
@@ -123,7 +124,7 @@ def main():
     canary_hits = []
 
     for rel, f in truth["files"].items():
-        entry = by_sha.get(f["sha256"])
+        entry = by_out.get("sanitized/" + rel) or by_sha.get(f["sha256"])
         outp = out / entry["output"] if entry and entry.get("output") else None
         if entry is None or outp is None:
             if f["expect"] == "sanitize":
@@ -205,8 +206,16 @@ def main():
     # ------- linkage
     recs = {}
     rp = out / "records.jsonl"
-    file_map = {f["sha256"]: rel for rel, f in truth["files"].items()}
-    out_to_in = {e["output"]: file_map.get(e["input_sha256"]) for e in report["files"] if e.get("output")}
+    file_map = collections.defaultdict(list)
+    for rel, f in truth["files"].items():
+        file_map[f["sha256"]].append(rel)
+    out_to_in = {}
+    for e in report["files"]:
+        if not e.get("output"):
+            continue
+        cands = file_map.get(e["input_sha256"], [])
+        same = [c for c in cands if "sanitized/" + c == e["output"]]
+        out_to_in[e["output"]] = same[0] if same else (cands[0] if cands else None)
     for line in rp.read_text(encoding="utf-8").splitlines():
         r = json.loads(line)
         rel = out_to_in.get(r["file"])

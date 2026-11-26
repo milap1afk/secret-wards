@@ -189,6 +189,10 @@ def parse_age(v) -> int:
     return int(m.group(1)) if m and int(m.group(1)) <= 120 else -1
 
 
+def village_key(v: str) -> str:
+    return name_key(re.sub(r"[\s\-.]+", "", str(v)))
+
+
 def iso_of(v: str, order: str) -> str:
     r = parse_any_date(str(v), order)
     return r[0].isoformat() if r else ""
@@ -526,7 +530,7 @@ class Pipeline:
                 if g:
                     ev.gender.add(g)
             elif sem == F.VILLAGE:
-                ev.villages.add(vowel_key(s))
+                ev.villages.add(village_key(s))
             elif sem == F.TEHSIL:
                 u.tehsil = s
             elif sem == F.DISTRICT:
@@ -587,7 +591,7 @@ class Pipeline:
                 except ValueError:
                     pass
             elif s.kind == "VILLAGE":
-                ev.villages.add(vowel_key(seg))
+                ev.villages.add(village_key(seg))
         if primary:
             g = re.search(r"(?i)(?:age\s*/\s*sex|yrs?|y)\s*[:/]?\s*\d*\s*/\s*([MF])\b|\b\d{1,3}\s*/\s*([MF])\b|(महिला|पुरुष)", dtext)
             if g:
@@ -1131,13 +1135,31 @@ def _walk(data):
     return out
 
 
+_PERSON_SEMS = {F.NAME, F.FIRST, F.UHID, F.PHONE, F.AADHAAR, F.ABHA, F.REL_NAME, F.DOB, F.OTHER_PERSON}
+
+
+def _item_is_person(x: dict, anc_key: str) -> bool:
+    for k, v in x.items():
+        if isinstance(v, dict):
+            if str(k).lower() in ("patient", "name", "subject", "ids", "contact", "guardian", "raised_by", "meta"):
+                return True
+            continue
+        sem = F.classify_json(str(k), [anc_key, 0])
+        if sem in _PERSON_SEMS:
+            return True
+    return False
+
+
 def _find_record_list(data):
     """Path of the main list of per-patient records, or None for single-document JSON."""
     if not isinstance(data, dict):
         return None
     if data.get("resourceType") == "Bundle":
         return None
-    best = None
+    # a document about ONE patient: {"patient": {...}, "panels": [...]}
+    for k, v in data.items():
+        if str(k).lower() in ("patient", "subject", "pt") and isinstance(v, dict):
+            return None
     frontier = [((), data)]
     for _depth_i in range(3):
         nxt = []
@@ -1145,13 +1167,12 @@ def _find_record_list(data):
             if not isinstance(node, dict):
                 continue
             for k, v in node.items():
-                if isinstance(v, list) and len(v) >= 1 and all(isinstance(x, dict) for x in v):
-                    if best is None:
-                        best = path + (k,)
+                if isinstance(v, list) and v and all(isinstance(x, dict) for x in v):
+                    share = sum(1 for x in v if _item_is_person(x, str(k))) / len(v)
+                    if share >= 0.5:
+                        return path + (k,)
                 elif isinstance(v, dict):
                     nxt.append((path + (k,), v))
-        if best is not None:
-            return best
         frontier = nxt
     return None
 
