@@ -30,7 +30,7 @@ from .translit import name_key
 # ------------------------------------------------------------------ span model
 PRIORITY = {
     "PROTECT": 100, "EMAIL": 90, "ABHA_ADDR": 90, "ABHA": 85, "AADHAAR": 84, "AADHAAR_MASKED": 83,
-    "PAN": 82, "INSURANCE": 82, "PHONE": 80, "PHONE_MASKED": 79, "MRN": 78, "DOB": 75, "DATE": 70,
+    "PAN": 82, "INSURANCE": 82, "GOVID": 81, "UPI": 90, "PHONE": 80, "LONGNUM": 77, "PHONE_MASKED": 79, "MRN": 78, "DOB": 75, "DATE": 70,
     "NAME": 60, "HOUSE": 55, "LOCALITY": 55, "LANDMARK": 55, "VILLAGE": 54, "PIN": 53, "ADDRESS": 52,
     "AGE": 40,
 }
@@ -115,8 +115,16 @@ RE_AADHAAR = re.compile(r"(?<![\d.])[2-9]\d{3}([\s\-.]?)\d{4}\1\d{4}(?![\d])")
 RE_AADHAAR_MASKED = re.compile(r"(?<![a-z0-9])(?:[x*]{4}[\s\-.]?){2}\d{4}(?!\d)|(?<![a-z0-9])[x*]{8}\d{4}(?!\d)")
 RE_PAN = re.compile(r"(?<![a-z0-9])[a-z]{5}\d{4}[a-z](?![a-z0-9])")
 RE_PHONE = re.compile(
-    r"(?<![\d+])(?:(?:\+|00)?91[ \-]?|0)?[6-9](?:[ \-]?\d){9}(?![\d])"
+    r"(?<![\d+])(?:\(?(?:\+|00)?91\)?[ .\-]?|\(0\)[ ]?|0)?[6-9](?:[ .\-]?\d){9}(?![\d])"
 )
+# other Indian identifiers (shapes, not labels, so they are found in any context)
+RE_UPI = re.compile(r"(?<![a-z0-9._%+\-])[a-z0-9][a-z0-9._\-]{1,}@[a-z]{2,}(?![a-z0-9.@])")
+RE_DL = re.compile(r"(?<![a-z0-9])[a-z]{2}[ \-]?\d{2}[ \-]?(?:19|20)\d{2}[ \-]?\d{7}(?![a-z0-9])")
+RE_VEHICLE = re.compile(r"(?<![a-z0-9])[a-z]{2}[ \-]?\d{1,2}[ \-]?[a-z]{1,3}[ \-]?\d{4}(?![a-z0-9])")
+RE_PASSPORT = re.compile(r"(?<![a-z0-9])[a-z][1-9]\d{6}(?![a-z0-9])")
+RE_EPIC = re.compile(r"(?<![a-z0-9])[a-z]{3}\d{7}(?![a-z0-9])")
+RE_IFSC = re.compile(r"(?<![a-z0-9])[a-z]{4}0[a-z0-9]{6}(?![a-z0-9])")
+RE_LONGNUM = re.compile(r"(?<![\d.])\d{9,18}(?![\d.])")
 RE_PHONE_MASKED = re.compile(r"(?<![a-z0-9])[6-9]\d[x*]{6}\d{2}(?![a-z0-9])|(?<![a-z0-9])[6-9]\d{1,3}[x*]{4,7}\d{1,4}(?![a-z0-9])")
 RE_INSURANCE = re.compile(
     r"(?<![a-z0-9])(?:pmjay|abpmjay|ab-pmjay|ayushman|pol|policy|ins|claim|cghs|esic)[\-/ ]?(?:[a-z]{2}[\-/])?\d[\d\-/]{5,}\d(?![\d])"
@@ -213,6 +221,7 @@ RE_NUMDATE = re.compile(r"(?<![\d/.\-])(\d{1,2})([/.\-])(\d{1,2})\2(\d{4}|\d{2})
 RE_TEXTDATE = re.compile(r"(?i)(?<![a-z\d])(\d{1,2})(?:st|nd|rd|th)?\s+(" + _MON + r")\.?,?(?:\s+(\d{4}))?(?![a-z])")
 RE_MONDATE = re.compile(r"(?i)(?<![a-z\d])(\d{1,2})[\-/ ](" + _MON + r")[\-/ ,]+(\d{4}|\d{2})(?![\d])")
 RE_YMD = re.compile(r"(?<![\d])(\d{4})[/.](\d{1,2})[/.](\d{1,2})(?![\d])")
+RE_HINDIDATE = re.compile(r"(?<![\d])(\d{1,2})\s+(जनवरी|फ़रवरी|फरवरी|मार्च|अप्रैल|अप्रेल|मई|जून|जुलाई|अगस्त|सितंबर|सितम्बर|अक्टूबर|अक्तूबर|नवंबर|नवम्बर|दिसंबर|दिसम्बर)\s+(\d{4})(?![\d])")
 RE_TEXTDATE2 = re.compile(r"(?i)(?<![a-z\d])(" + _MON + r")\.?\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{4})(?![\d])")
 RE_AGE = re.compile(
     r"(?i)(?<![\d\-/.x])(?<!x )(\d{1,3})\s*(?:yrs?|years?|y)\.?(?=\s*/\s*(?:[mf]\b|male|female)|\s*,?\s*(?:male|female|m\b|f\b|old\b))"
@@ -347,6 +356,19 @@ class Detector:
             spans.append(Span(m.start(), m.end(), "PROTECT", value="asha"))
 
     def _identifiers(self, t, f, spans):
+        for m in RE_IFSC.finditer(f):        # a bank BRANCH code, not a person: keep it, never use it to link.
+            # Only next to an IFSC label: the shape alone also matches hospital IDs such as JJCH0077305.
+            if re.search(r"ifsc\W{0,4}$", f[max(0, m.start() - 12):m.start()]):
+                spans.append(Span(m.start(), m.end(), "PROTECT", value="ifsc"))
+        for m in RE_UPI.finditer(f):
+            dom = m.group(0).split("@", 1)[1]
+            if dom not in ("abdm", "sbx", "ndhm", "abha"):
+                spans.append(Span(m.start(), m.end(), "UPI", value=m.group(0)))
+        for rx in (RE_DL, RE_VEHICLE, RE_PASSPORT, RE_EPIC):
+            for m in rx.finditer(f):
+                spans.append(Span(m.start(), m.end(), "GOVID", value=m.group(0).upper()))
+        for m in RE_LONGNUM.finditer(f):     # 9+ digit runs are never doses, vitals, labs, dates or ages
+            spans.append(Span(m.start(), m.end(), "LONGNUM", value=m.group(0)))
         for rx, kind in ((RE_EMAIL, "EMAIL"), (RE_ABHA_ADDR, "ABHA_ADDR")):
             for m in rx.finditer(f):
                 spans.append(Span(m.start(), m.end(), kind, value=m.group(0)))
@@ -506,6 +528,18 @@ class Detector:
             s0, e0, toks = _name_run(t, m.end(), max_tokens=3)
             if toks:
                 spans.append(Span(s0, e0, "NAME", role="relative", value=" ".join(toks), meta={"src": "kinship"}))
+        # Devanagari: "<नाम> (पड़ोसी)", "<नाम> (पुत्र)" and "<नाम>, मो. 98..." (name right before a phone label)
+        for m in re.finditer(r"((?:[\u0900-\u0963\u0970-\u097F]+\s+){0,2}[\u0900-\u0963\u0970-\u097F]+)\s*\(\s*(?:पड़ोसी|पड़ोसन|परिजन|रिश्तेदार|पुत्र|पुत्री|पत्नी|पति|भाई|बहन|बेटा|बेटी|माँ|माता|पिता|ससुर|सास|देवर|जेठ|चाचा|मामा|परिचारक|मित्र|दोस्त)", t):
+            words = m.group(1).split()
+            words = [w for w in words if w not in HINDI_STOP]
+            if words:
+                st = m.start(1) + m.group(1).find(words[0])
+                spans.append(Span(st, m.end(1), "NAME", role="relative", value=" ".join(words), meta={"src": "deva-role"}))
+        for m in re.finditer(r"((?:[\u0900-\u0963\u0970-\u097F]+\s+){0,2}[\u0900-\u0963\u0970-\u097F]+)\s*[,:]?\s*(?:मो\.|मोबाइल|फ़ोन|फोन)\s*[:\-]?\s*[\d\u0966-\u096F+(]", t):
+            words = [w for w in m.group(1).split() if w not in HINDI_STOP]
+            if words:
+                st = m.start(1) + m.group(1).find(words[0])
+                spans.append(Span(st, m.end(1), "NAME", role="other", value=" ".join(words), meta={"src": "deva-phone"}))
         # "<Name> (attendant, bed 12)"
         for m in re.finditer(r"\(\s*(?:attendant|relative|husband|wife|son|daughter|father|mother|guardian|visitor|caller)", t, flags=re.I):
             left = t[:m.start()].rstrip()
@@ -623,6 +657,8 @@ class Detector:
             spans.append(Span(m.start(), m.end(), "DATE", value=m.group(0), meta={"fmt": "num"}))
         for m in RE_TEXTDATE.finditer(f):
             spans.append(Span(m.start(), m.end(), "DATE", value=m.group(0), meta={"fmt": "text"}))
+        for m in RE_HINDIDATE.finditer(f):
+            spans.append(Span(m.start(), m.end(), "DATE", value=m.group(0), meta={"fmt": "hindi"}))
         for m in RE_MONDATE.finditer(f):
             spans.append(Span(m.start(), m.end(), "DATE", value=m.group(0), meta={"fmt": "mon"}))
         for m in RE_YMD.finditer(f):
@@ -647,7 +683,7 @@ def _id_core(s: str) -> str:
 
 
 def _match_date_at(t: str, f: str, pos: int):
-    for rx, fmt in ((RE_ISO, "iso"), (RE_NUMDATE, "num"), (RE_MONDATE, "mon"), (RE_YMD, "ymd"), (RE_TEXTDATE, "text")):
+    for rx, fmt in ((RE_ISO, "iso"), (RE_NUMDATE, "num"), (RE_HINDIDATE, "hindi"), (RE_MONDATE, "mon"), (RE_YMD, "ymd"), (RE_TEXTDATE, "text")):
         m = rx.match(f, pos)
         if m:
             return (m.start(), m.end(), m.group(0), {"fmt": fmt})

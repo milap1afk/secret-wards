@@ -88,6 +88,11 @@ _MON_IDX = {m.lower(): i + 1 for i, m in enumerate(MONTH_NAMES)}
 for _m, _i in list(_MON_IDX.items()):
     _MON_IDX[_m[:3]] = _i
 _MON_IDX["sept"] = 9
+HINDI_MONTHS = ["जनवरी", "फ़रवरी", "मार्च", "अप्रैल", "मई", "जून", "जुलाई", "अगस्त", "सितंबर", "अक्टूबर", "नवंबर", "दिसंबर"]
+_HINDI_ALT = {"फरवरी": 2, "सितम्बर": 9, "अक्तूबर": 10, "नवम्बर": 11, "दिसम्बर": 12, "अप्रेल": 4}
+for _i, _m in enumerate(HINDI_MONTHS):
+    _MON_IDX[_m] = _i + 1
+_MON_IDX.update(_HINDI_ALT)
 
 
 def _mk(y: int, m: int, d: int):
@@ -145,6 +150,10 @@ def parse_iso(s: str):
 
 
 def parse_text_date(s: str, ref_year: int):
+    m = re.match(r"^\s*(\d{1,2})\s+([\u0900-\u097F]+)\s+(\d{4})\s*$", s)    # 12 अप्रैल 1977
+    if m and m.group(2) in _MON_IDX:
+        d = _mk(int(m.group(3)), _MON_IDX[m.group(2)], int(m.group(1)))
+        return (d, {"style": "hindi"}) if d else None
     m = re.match(r"(?i)^\s*(\d{1,2})(st|nd|rd|th)?\s+([a-z]+)\.?(,?)(?:\s+(\d{4}))?\s*$", s)
     if m:
         mon = _MON_IDX.get(m.group(3).lower()[:4].rstrip(".")) or _MON_IDX.get(m.group(3).lower()[:3])
@@ -172,6 +181,8 @@ def format_date(d: dt.date, info: dict) -> str:
     st = info["style"]
     if st == "num":
         return format_num_date(d, info)
+    if st == "hindi":
+        return f"{d.day} {HINDI_MONTHS[d.month - 1]} {d.year}"
     if st == "mon":
         mon = MONTH_NAMES[d.month - 1][:3] if info["abbr"] else MONTH_NAMES[d.month - 1]
         mon = mon.upper() if info["upper"] else mon

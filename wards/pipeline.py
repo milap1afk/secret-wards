@@ -915,6 +915,12 @@ class Pipeline:
             return surrogate_id("ID", core)
         if k in ("PHONE", "PHONE_MASKED"):
             return "[PHONE]"
+        if k == "UPI":
+            return "[UPI-ID]"
+        if k == "GOVID":
+            return "[GOV-ID]"
+        if k == "LONGNUM":
+            return "[ID-NUMBER]"
         if k in ("AADHAAR", "AADHAAR_MASKED"):
             return "[AADHAAR]"
         if k == "ABHA":
@@ -1136,6 +1142,9 @@ class Pipeline:
                 return 0
             if len(d) == 14:
                 self._count("ABHA")
+                return 0
+            if len(d) >= 9 and sem not in (F.AGE, F.DATE) and not re.search(r"(?i)amount|value|count|result|price|cost|total|fee|inr|rs", str(lf.key)):
+                self._count("LONGNUM")     # 9+ digit integers are identifiers (accounts, IDs), never measurements
                 return 0
         return v
 

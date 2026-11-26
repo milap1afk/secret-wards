@@ -71,6 +71,16 @@ CASES = [
     ("D/O SHRI RAMESH CHANDRA, AGE 23 YRS", ["RAMESH CHANDRA"], []),
     ("Next of kin - Sushma (wife) 9123456780", ["Sushma", "9123456780"], []),
     ("Admitted on 05.03.2026, discharged on 12.03.2026", [], []),
+    # --- identifier shapes from the blind holdout (round 3)
+    ("ph 683.865.6785, Cell# (+91) 846-312-2585", ["683.865.6785", "846-312-2585"], []),
+    ("UPI debashish.811@paytm; mail a.b@gmail.com", ["debashish.811@paytm", "a.b@gmail.com"], []),
+    ("A/c 899062550917419 IFSC SBIN0097854", ["899062550917419"], ["SBIN0097854"]),
+    ("UHID: JJCH0077305", ["JJCH0077305"], []),
+    ("DL UP15 20140589114, vehicle UP62 EN 4137, Passport P6324328, EPIC ABC1234567",
+     ["UP15 20140589114", "UP62 EN 4137", "P6324328", "ABC1234567"], []),
+    ("दवा लेने आए: थोकचोम इबोम्चा (पड़ोसी), मो. ९४३६० २१७७५", ["थोकचोम इबोम्चा", "९४३६० २१७७५"], []),
+    ("जन्म तिथि: 12 अप्रैल 1977", ["12 अप्रैल 1977"], []),
+    ("Platelet 250000 /uL, WBC 13000, Temp 101.2 F", [], ["250000", "13000", "101.2"]),
     # --- canary-style names with role context only
     ("Consent witnessed by Tsering Wangmo, phone 8010993510.", ["Tsering Wangmo", "8010993510"], []),
     ("called by Kaveri Nambiar 94054-71434", ["Kaveri Nambiar", "94054-71434"], []),
@@ -83,7 +93,8 @@ CASES = [
 ]
 
 PII_KINDS = {"NAME", "PHONE", "PHONE_MASKED", "AADHAAR", "AADHAAR_MASKED", "ABHA", "ABHA_ADDR", "EMAIL", "PAN",
-             "INSURANCE", "MRN", "DOB", "HOUSE", "LOCALITY", "LANDMARK", "VILLAGE", "PIN", "ADDRESS"}
+             "INSURANCE", "MRN", "DOB", "HOUSE", "LOCALITY", "LANDMARK", "VILLAGE", "PIN", "ADDRESS",
+             "UPI", "GOVID", "LONGNUM"}
 
 
 def covered(spans, text, needle):

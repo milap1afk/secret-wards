@@ -38,6 +38,7 @@ def words_of(label: str) -> str:
 
 _RULES = [
     # order matters: first match wins
+    (r" (ifsc|ifsc code|branch code|micr) ", KEEP),
     (r" (ref doctor|ref dr|ref by|referred by|referr?ed|referring|consultant|doctor|dr|physician|surgeon|treating|attending|author|performer|practitioner|daktar|doktar) ", DOCTOR),
     (r" (hospital|facility|organization|organisation|lab name|laboratory|centre|center|clinic|provider|insurer|tpa) (name )?$", ORG),
     (r" (abha|health) ?(address|addr) ", ABHA_ADDR),
