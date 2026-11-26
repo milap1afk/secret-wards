@@ -36,6 +36,7 @@ from .translit import name_key, vowel_key
 TEXT_EXT = {".txt", ".text", ".log", ".md", ".note", ".notes"}
 CSV_EXT = {".csv", ".tsv", ".psv", ".tab"}
 JSON_EXT = {".json", ".fhir", ".ndjson", ".jsonl"}
+XML_EXT = {".xml", ".cda", ".hl7x"}
 MAX_JSON_DEPTH = 200
 
 
@@ -81,6 +82,12 @@ def decode_bytes(raw: bytes) -> str:
 def sniff_format(rel: str, text: str) -> str:
     ext = Path(rel).suffix.lower()
     head = text.lstrip()[:1]
+    if ext in XML_EXT:
+        if head != "<":
+            raise Quarantine("format_mismatch")
+        if re.search(r"(?i)<!DOCTYPE|<!ENTITY", text):
+            raise Quarantine("xml_dtd_not_allowed")
+        return "xml"
     if ext in JSON_EXT:
         return "json"
     if ext in CSV_EXT:
@@ -250,6 +257,8 @@ class Pipeline:
                     self._load_json(job)
                 elif job.fmt == "csv":
                     self._load_csv(job)
+                elif job.fmt == "xml":
+                    self._load_xml(job)
                 job.date_order = self._date_order(job)
             except Quarantine as q:
                 job.status, job.reason = "quarantined", str(q)
@@ -273,6 +282,18 @@ class Pipeline:
         job.data = data
         m = re.search(r"\n([ \t]+)\S", txt)
         job.json_indent = (len(m.group(1)) if m.group(1)[0] == " " else "\t") if m else None
+
+    def _load_xml(self, job: FileJob) -> None:
+        import xml.etree.ElementTree as ET
+        raw = job.text.encode("utf-8")
+        try:
+            for _ev, (prefix, uri) in ET.iterparse(io.BytesIO(raw), events=("start-ns",)):
+                ET.register_namespace(prefix or "", uri)
+            job.data = ET.fromstring(re.sub(r"^\s*<\?xml[^>]*\?>", "", job.text).encode("utf-8"))
+        except ET.ParseError:
+            raise Quarantine("malformed_xml")
+        m = re.match(r"\s*(<\?xml[^>]*\?>)", job.text)
+        job.xml_decl = m.group(1) if m else ""
 
     def _load_csv(self, job: FileJob) -> None:
         job.delim = sniff_delimiter(job.rel, job.text)
@@ -322,6 +343,8 @@ class Pipeline:
                     self._units_csv(job)
                 elif job.fmt == "json":
                     self._units_json(job)
+                elif job.fmt == "xml":
+                    self._units_xml(job)
                 else:
                     u = Unit(job.rel, "doc", "doc", text=job.text, date_order=job.date_order)
                     job.units = [u]
@@ -364,6 +387,38 @@ class Pipeline:
             target.leaves.append(leaf)
         job.units = ([doc_unit] if doc_unit is not None else [units[k] for k in sorted(units)])
         job.file_unit = file_unit
+
+    def _units_xml(self, job: FileJob) -> None:
+        u = Unit(job.rel, "doc", "doc", date_order=job.date_order)
+
+        def local(tag):
+            return tag.rsplit("}", 1)[-1] if isinstance(tag, str) else ""
+
+        def walk(el, anc, path):
+            tag = local(el.tag)
+            idroot = (el.get("root") or "").lower()
+            for an, av in sorted(el.attrib.items()):
+                an_l = local(an)
+                if an_l in ("root", "xmlns", "codeSystem", "classCode", "moodCode", "typeCode", "use"):
+                    continue
+                if tag == "id" and an_l == "extension":
+                    sem = F.AADHAAR if "aadhaar" in idroot or idroot.startswith("2.16.356.") and len(re.sub(r"\D", "", av)) == 12 else (
+                        F.ABHA if "abha" in idroot or "healthid" in idroot else F.UHID)
+                else:
+                    sem = F.classify_json(an_l, anc + [tag])
+                    if an_l in ("value", "code", "displayName", "unit") and sem not in F.IDENTIFIER_SEMS:
+                        sem = F.TEXT
+                u.leaves.append(Leaf(sem=sem, value=av, path=path + ("@" + an,), key=an_l, extra={"el": el, "attr": an}))
+            if el.text and el.text.strip():
+                sem = F.classify_json(tag, anc)
+                u.leaves.append(Leaf(sem=sem, value=el.text, path=path + ("#text",), key=tag, extra={"el": el, "part": "text"}))
+            for i, ch in enumerate(list(el)):
+                walk(ch, anc + [tag], path + (i,))
+                if ch.tail and ch.tail.strip():
+                    u.leaves.append(Leaf(sem=F.TEXT, value=ch.tail, path=path + (i, "#tail"), key="", extra={"el": ch, "part": "tail"}))
+
+        walk(job.data, [], ())
+        job.units = [u]
 
     def _json_sem(self, key, anc, rt, path, data) -> str:
         if isinstance(key, int):
@@ -672,6 +727,8 @@ class Pipeline:
                     body = self._write_csv(job)
                 elif job.fmt == "json":
                     body = self._write_json(job)
+                elif job.fmt == "xml":
+                    body = self._write_xml(job)
                 else:
                     body = self._write_text(job)
                 out_rel = self._safe_relpath(job)
@@ -1037,6 +1094,24 @@ class Pipeline:
             row = ["" if x is None else str(x) for x in row]
             w.writerow(row)
         return buf.getvalue()
+
+    def _write_xml(self, job: FileJob) -> str:
+        import xml.etree.ElementTree as ET
+        u = job.units[0]
+        found = self._prepare_unit(u)
+        sweep = self._sweep_keys(u, found)
+        for lf in u.leaves:
+            new = self._render_leaf(lf, u, sweep, {"district": u.district})
+            new = "" if new is None else str(new)
+            el = lf.extra["el"]
+            if "attr" in lf.extra:
+                el.set(lf.extra["attr"], new)
+            elif lf.extra.get("part") == "text":
+                el.text = new
+            else:
+                el.tail = new
+        body = ET.tostring(job.data, encoding="unicode")
+        return (job.xml_decl + job.newline if job.xml_decl else "") + body + job.newline
 
     def _write_text(self, job: FileJob) -> str:
         u = job.units[0]

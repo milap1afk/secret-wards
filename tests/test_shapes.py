@@ -14,9 +14,9 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-NAMES = ["Bhagirath Tomar", "Chandrakala Sengar", "Trilok Bundela", "Yamini Chandel", "Mangru Ram",
+NAMES = ["Rudransh Gaharwar", "Bhagirath Tomar", "Chandrakala Sengar", "Trilok Bundela", "Yamini Chandel", "Mangru Ram",
          "Omveer Jadon", "Fakira Sisodia", "Gangadin Parihar", "Nankau", "Pancham"]
-PHONES = ["9876501234", "9876501299", "9812345670", "9812345671", "9811122233", "9800011122", "9800011199"]
+PHONES = ["9800012345", "234567890123", "9876501234", "9876501299", "9812345670", "9812345671", "9811122233", "9800011122", "9800011199"]
 
 
 def build(d: Path) -> None:
@@ -34,6 +34,11 @@ def build(d: Path) -> None:
     (d / "b/latin1.txt").write_bytes("Patient: Fakira Sisodia, Temp 101.2°F – stable. Mob 9800011122".encode("cp1252"))
     (d / "b/utf16.txt").write_bytes("Name: Gangadin Parihar Ph 9800011199".encode("utf-16-le"))
     (d / "b/hinglish.txt").write_text("Raat ko Nankau ki tabiyat kharab hui. Uske bete Pancham ne bataya.\n")
+    (d / "b/cda.xml").write_text('<?xml version="1.0"?>\n<ClinicalDocument xmlns="urn:hl7-org:v3"><recordTarget><patientRole>'
+                                 '<id root="2.16.356.aadhaar" extension="234567890123"/><telecom value="tel:+91-9800012345"/>'
+                                 '<patient><name><given>Rudransh</given><family>Gaharwar</family></name></patient></patientRole>'
+                                 '</recordTarget><component><text>Rudransh ji admitted with dengue</text></component></ClinicalDocument>')
+    (d / "b/bomb.xml").write_text('<?xml version="1.0"?><!DOCTYPE lolz [<!ENTITY lol "lol">]><a>&lol;</a>')
 
 
 def main() -> int:
@@ -48,8 +53,8 @@ def main() -> int:
             fails.append(f"exit code {r.returncode}")
         rep = json.loads((out / "report.json").read_text())
         q = [f for f in rep["files"] if f["status"] != "sanitized"]
-        if q:
-            fails.append(f"{len(q)} files quarantined")
+        if len(q) != 1 or q[0].get("reason") != "xml_dtd_not_allowed":
+            fails.append(f"expected exactly the DTD bomb quarantined, got {[x.get('reason') for x in q]}")
         blob = "".join(p.read_text(encoding="utf-8") for p in (out / "sanitized").rglob("*") if p.is_file())
         blob += (out / "report.json").read_text() + (out / "records.jsonl").read_text() + r.stdout + r.stderr
         for n in NAMES:

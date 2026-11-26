@@ -44,12 +44,15 @@ input/ ──► 0. ingest ──► 1. harvest ──► 2. link ──► 3. s
 | `wards/privacy.py` | HMAC pseudonyms, per-patient date shifts, age bands, PIN prefixes |
 | `wards/rare.py` | optional ICD-chapter generalisation of rare diagnoses |
 | `wards/vault.py` | encrypted quarantine vault |
+| `tests/` | adversarial detector cases, header variants, end-to-end file shapes |
 | `config/policy.yaml` | every privacy knob, with the reason for its value |
 
 ### 0. Ingestion
 Encodings are detected from BOMs and content (UTF-8, UTF-8-BOM, UTF-16 with or without BOM, cp1252).
 The format is sniffed from content, not just the extension: JSON hiding behind `.csv` is quarantined.
-Empty, truncated, over-deep (>200 levels), binary, PDF, JPEG, XML and broken-UTF-8 files are quarantined
+XML / HL7 CDA is parsed and sanitised element by element (`id/@extension` under an Aadhaar OID is an Aadhaar,
+`patient/name` is the patient); XML with a DOCTYPE or entities is refused (no entity-expansion attacks).
+Empty, truncated, over-deep (>200 levels), binary, PDF, JPEG and broken-UTF-8 files are quarantined
 with a reason. **A file is never copied out unless it was fully processed.**
 
 ### 1. Detection
@@ -156,6 +159,6 @@ union-find only.
   missing from every structured column cannot be found.
 * Devanagari names that our transliteration renders very differently from their Latin form may stay
   unlinked. Linking then errs on the side of not merging.
-* XML/HL7 CDA, PDF and images are quarantined rather than sanitised.
+* PDF and images are quarantined rather than sanitised (no OCR).
 * Profile-level risk is still dominated by district + gender + age band for patients with many records.
   Coarser bands would trade research value for privacy.

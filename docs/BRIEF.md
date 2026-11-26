@@ -18,7 +18,7 @@ evidence + PII lexicon) → **link** (union-find: strong IDs, then name + unique
 
 ## 3. How it works
 - **Ingestion:** BOM and content detection (UTF-8/BOM/UTF-16/cp1252); JSON behind `.csv`, truncated or
-  1,500-deep JSON, broken UTF-8, PDF, JPEG and XML are quarantined, never copied raw.
+  1,500-deep JSON, broken UTF-8, PDF and JPEG are quarantined, never copied raw; XML/CDA is sanitised per element, DTDs refused.
 - **Detection:** a field classifier for English, transliterated-Hindi and Devanagari headers and for
   FHIR/JSON key paths; a 12-layer text detector on a homoglyph- and Indic-digit-folded copy; a
   dataset-wide lexicon catches names and ID digit cores hidden in paths, keys, headers and base64; a
@@ -57,5 +57,5 @@ swaps in 115 unknown names, renamed columns and labels, and new ID and phone for
 
 ## 6. Known limitations
 Names with no context that never appear in a structured column; Devanagari names whose transliteration
-diverges strongly (we then leave records unlinked rather than risk a merge); XML/PDF/images are quarantined,
+diverges strongly (we then leave records unlinked rather than risk a merge); PDF/images are quarantined,
 not cleaned; profile risk for patients with many records is still dominated by district + gender + age band.
