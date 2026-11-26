@@ -6,6 +6,7 @@ Hand-written (no external dependency) so behaviour is deterministic and explaina
 """
 from __future__ import annotations
 
+import functools
 import re
 import unicodedata
 
@@ -108,6 +109,7 @@ def latin_simplify(token: str) -> str:
     return t
 
 
+@functools.lru_cache(maxsize=200000)
 def name_key(token: str) -> str:
     """Consonant skeleton of a single name token (script independent)."""
     if not token:
@@ -126,6 +128,7 @@ def name_key(token: str) -> str:
     return s
 
 
+@functools.lru_cache(maxsize=200000)
 def vowel_key(token: str) -> str:
     """Less lossy key: simplified spelling with vowel runs collapsed (for tie-breaking)."""
     if re.search(r"[ऀ-ॿ]", token):

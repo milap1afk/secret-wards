@@ -28,6 +28,7 @@ from .link import Evidence, Linker, name_tokens, tok_keys
 from .policy import POLICY
 from .privacy import (age_band, pin_prefix, pseudonym, shift_date_string, shift_days, surrogate_id,
                       parse_any_date)
+from . import rare as rare_mod
 from .textnorm import decode_escapes, fold, strip_zero_width, try_b64, B64_RE
 from .translit import name_key, vowel_key
 
@@ -221,6 +222,8 @@ class Pipeline:
         self.n_identifiers = 0
         self.entities: dict = {}
         self.n_generalized = 0
+        self.rare: dict = {}
+        self._dcache: dict = {}
 
     # ------------------------------------------------------------------ pass 0
     def ingest(self) -> None:
@@ -795,13 +798,23 @@ class Pipeline:
         return "[REDACTED]"
 
     def _detect(self, text: str, *, address_ctx: bool = False) -> list:
+        key = (text, address_ctx, id(self.detector))
+        hit = self._dcache.get(key)
+        if hit is not None:
+            return hit
         dt_ = decode_escapes(text)
         if dt_ != text:
             text = dt_
         det_text = text.replace("_", " ")
-        return text, self.detector.detect(det_text, address_ctx=address_ctx)
+        res = (text, self.detector.detect(det_text, address_ctx=address_ctx))
+        if len(self._dcache) < 300000:
+            self._dcache[key] = res
+        return res
 
     def _render_free(self, text: str, u: Unit, sweep: set, address_ctx: bool = False) -> str:
+        return rare_mod.apply(self._render_free0(text, u, sweep, address_ctx), self.rare)
+
+    def _render_free0(self, text: str, u: Unit, sweep: set, address_ctx: bool = False) -> str:
         # base64 payloads inside free text: decode, clean, re-encode
         def b64sub(m):
             dec = try_b64(m.group(0))
@@ -1283,6 +1296,7 @@ def run(inp: Path, out: Path) -> int:
     pl.build_units()
     pl.harvest()
     pl.link()
+    pl.rare = rare_mod.find_rare(pl.units, int(POLICY.get("rare_k", 3)))
     records = pl.sanitize_all()
     exported = {j.out_rel for j in pl.jobs if j.status == "sanitized"}
     records = [r for r in records if r["file"] in exported]

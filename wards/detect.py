@@ -215,6 +215,9 @@ RE_AGE = re.compile(
 )
 
 
+HONORIFIC_RE = re.compile(r"(?<![\w\u0900-\u097F])(" + "|".join(sorted((re.escape(h) for h in gz.HONORIFIC_SUFFIX), key=len, reverse=True)) + r")(?![\w\u0900-\u097F])", re.I)
+
+
 @dataclass
 class Lexicon:
     """Known PII harvested from structured fields of the whole dataset."""
@@ -425,7 +428,7 @@ class Detector:
 
     def _honorifics(self, t, f, spans):
         # suffix honorific: "<Name> sahab", "<Name> ji", "<नाम> जी"
-        for m in re.finditer(r"(?<![\w\u0900-\u097F])(" + "|".join(sorted((re.escape(h) for h in gz.HONORIFIC_SUFFIX), key=len, reverse=True)) + r")(?![\w\u0900-\u097F])", t, flags=re.I):
+        for m in HONORIFIC_RE.finditer(t):
             hon = m.group(1).lower()
             # walk back over up to 3 name tokens
             left = t[:m.start()]
