@@ -491,6 +491,17 @@ class Detector:
             if all(is_name_token(w.rstrip(".")) or w.lower().rstrip(".") in ("md", "mohd") for w in words):
                 if not re.search(r"(?i)\b(?:dr|doctor)\.?\s*$", t[max(0, m.start(1) - 5):m.start(1)]):
                     spans.append(Span(m.start(1), m.end(1), "NAME", value=m.group(1), meta={"src": "possessive"}))
+        # possessive anywhere before a clinical/state noun: "Nankau ki tabiyat", "Sunita ka sugar"
+        for m in re.finditer(r"(?<![A-Za-z])((?:[A-Z][a-z]+\s+){0,1}[A-Z][a-z]{2,})\s+(?:ka|ki|ke)\s+(?i:tabiyat|tabiyet|tabeeyat|haalat|halat|bp|sugar|bukhar|pet|sar|report|dawai|dawa|ilaj|ilaaj|operation|condition|khana|neend|pulse|temp)\b", t):
+            words = m.group(1).split()
+            if all(is_name_token(w) for w in words) and words[0][0].isupper():
+                if not re.search(r"(?i)\b(?:dr|doctor)\.?\s*$", t[max(0, m.start(1) - 5):m.start(1)]):
+                    spans.append(Span(m.start(1), m.end(1), "NAME", value=m.group(1), meta={"src": "possessive"}))
+        # Hinglish kinship: "bete Pancham ne", "pati Ramesh ko", "unki beti Sunita"
+        for m in re.finditer(r"(?i)\b(?:beta|bete|beti|bitiya|pati|patni|bahu|bhai|bhaiya|behen|bahen|bhabhi|maa|pita|papa|chacha|chachi|mama|mami|nana|nani|dada|dadi|devar|jeth|saas|sasur|damad)\s+(?=[A-Z])", t):
+            s0, e0, toks = _name_run(t, m.end(), max_tokens=3)
+            if toks:
+                spans.append(Span(s0, e0, "NAME", role="relative", value=" ".join(toks), meta={"src": "kinship"}))
         # "<Name> (attendant, bed 12)"
         for m in re.finditer(r"\(\s*(?:attendant|relative|husband|wife|son|daughter|father|mother|guardian|visitor|caller)", t, flags=re.I):
             left = t[:m.start()].rstrip()

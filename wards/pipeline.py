@@ -552,6 +552,14 @@ class Pipeline:
         n_patient_names = len({" ".join(sorted(vowel_key(t) for t in n)) for n in ev.names})
         if len(ev.uhids) > 4 or len(ev.phones) > 3 or n_patient_names > 3:
             ev.multi = True
+        # two primary names that share no token, or two Aadhaar numbers / DOBs: several people
+        keysets = [tok_keys(n) for n in ev.names]
+        for i in range(len(keysets)):
+            for j in range(i + 1, len(keysets)):
+                if keysets[i] and keysets[j] and not (keysets[i] & keysets[j]):
+                    ev.multi = True
+        if len(ev.aadhaar) > 1 or len(ev.dob) > 1:
+            ev.multi = True
 
     def _evidence_text(self, text: str, ev: Evidence, order: str, primary: bool) -> None:
         dtext = decode_escapes(text)
@@ -1179,6 +1187,11 @@ def _item_is_person(x: dict, anc_key: str) -> bool:
 
 def _find_record_list(data):
     """Path of the main list of per-patient records, or None for single-document JSON."""
+    if isinstance(data, list):
+        if data and all(isinstance(x, dict) for x in data) and \
+                sum(1 for x in data if _item_is_person(x, "")) / len(data) >= 0.5:
+            return ()
+        return None
     if not isinstance(data, dict):
         return None
     if data.get("resourceType") == "Bundle":

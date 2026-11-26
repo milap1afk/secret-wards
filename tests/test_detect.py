@@ -37,6 +37,9 @@ CASES = [
     ("Smt. Kalawati ki tabiyat theek hai", ["Kalawati"], []),
     ("Mohd. Irfan sahab ka sugar 220", ["Irfan"], []),
     ("सुनीता जी को बुखार है", ["सुनीता"], []),
+    ("Raat ko Nankau ki tabiyat kharab hui. Uske bete Pancham ne bataya.", ["Nankau", "Pancham"], []),
+    ("Sunita ka sugar 240 tha, pati Ramesh ko bataya", ["Sunita", "Ramesh"], []),
+    ("BP ki dawai ka time 8 baje", [], ["BP ki dawai"]),
     # --- identifiers in many formats
     ("Mob: +91-98765-43210", ["98765-43210"], []),
     ("ph 098765 43210", ["98765 43210"], []),
