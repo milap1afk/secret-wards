@@ -168,6 +168,9 @@ ROLE_AFTER = re.compile(r"(?i)^\s*\((attendant|relative|husband|wife|son|daughte
 CHAT_SENDER = re.compile(r"^\[[^\]]{4,40}\]\s*([^:\n]{2,40}):", re.M)
 
 # ------------------------------------------------------------------ protected contexts
+RE_URL = re.compile(r"(?i)\bhttps?://[^\s\"'<>]+|\bwww\.[^\s\"'<>]+")
+STANDARD_HOSTS = ("w3.org", "hl7.org", "loinc.org", "snomed.info", "unitsofmeasure.org", "who.int", "fhir.org",
+                  "abdm.gov.in", "ndhm.gov.in", "nrces.in", "example.org", "example.com", ".example")
 RE_UUID = re.compile(r"(?<![0-9a-f])[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?![0-9a-f])")
 RE_HEX = re.compile(r"(?<![0-9a-z])[0-9a-f]{16,}(?![0-9a-z])")
 DOCTOR_RE = re.compile(
@@ -321,6 +324,12 @@ class Detector:
 
     # -------------------------------------------------------------- layers
     def _protect(self, t, f, spans):
+        for m in RE_URL.finditer(t):
+            url = m.group(0)
+            host = re.match(r"(?i)(?:https?://|urn:)?([^/\s]+)", url).group(1).lower()
+            path = url[len(re.match(r"(?i)(?:https?://)?[^/\s]*", url).group(0)):]
+            if any(host.endswith(h) for h in STANDARD_HOSTS) or not (re.search(r"\d{5,}", path) or re.search(r"[A-Z][a-z]+[_ ][A-Z][a-z]+", path)):
+                spans.append(Span(m.start(), m.end(), "PROTECT", value="url"))
         for m in RE_UUID.finditer(f):
             spans.append(Span(m.start(), m.end(), "PROTECT", value="uuid"))
         for m in RE_HEX.finditer(f):
