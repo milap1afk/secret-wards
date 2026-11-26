@@ -114,8 +114,10 @@ def is_initial(tok: str) -> bool:
 # ------------------------------------------------------------------ identifier patterns
 SEP = r"[\s\-./]?"
 RE_EMAIL = re.compile(r"(?<![a-z0-9._%+\-])[a-z0-9][a-z0-9._%+\-]{0,63}@[a-z0-9\-]{1,63}(?:\.[a-z0-9\-]{1,63}){1,8}")
+RE_EMAIL_OBF = re.compile(r"(?<![a-z0-9._])[a-z0-9][a-z0-9._%+\-]{0,63}\s*[\[(]\s*at\s*[\])]\s*[a-z0-9\-]{1,63}(?:\s*(?:[\[(]\s*dot\s*[\])]|\.)\s*[a-z0-9\-]{1,63}){1,4}")
 RE_ABHA_ADDR = re.compile(r"(?<![a-z0-9._])[a-z0-9][a-z0-9._]{2,63}@(?:abdm|sbx|ndhm|abha)\b")
 RE_ABHA = re.compile(r"(?<![\d])\d{2}[\s\-]\d{4}[\s\-]\d{4}[\s\-]\d{4}(?![\d])|(?<![\d])\d{14}(?![\d])")
+RE_VID = re.compile(r"(?<![\d.])\d{4}([\s\-.]?)\d{4}\1\d{4}\1\d{4}(?![\d])")
 RE_AADHAAR = re.compile(r"(?<![\d.])[2-9]\d{3}([\s\-.]?)\d{4}\1\d{4}(?![\d])")
 RE_AADHAAR_MASKED = re.compile(r"(?<![a-z0-9])(?:[x*]{4}[\s\-.]?){2}\d{4}(?!\d)|(?<![a-z0-9])[x*]{8}\d{4}(?!\d)")
 RE_PAN = re.compile(r"(?<![a-z0-9])[a-z]{5}\d{4}[a-z](?![a-z0-9])")
@@ -168,7 +170,7 @@ REL_LABEL_WORDS = re.compile(r"(?i)attendant|relative|guardian|informant|caller|
 PHONE_LABELS = re.compile(r"(?i)\b(mob(?:ile)?|ph(?:one)?|tel|contact|cell|whats\s*app|call\s*back|callback|मोबाइल|फ़ोन|फोन)\b\.?\s*(?:no\.?|number)?\s*[:\-–=]?\s*")
 ADDR_LABELS = re.compile(r"(?i)(?<![a-z])(address|addr|add|residence|r/o|resident\s+of|पता|निवास)\s*[:\-–.]\s*")
 VILLAGE_MARKERS = re.compile(r"(?i)(?<![a-z])(vill(?:age)?\.?|gram|gaon|ग्राम|गांव|गाँव|मौजा|mauza)\s*[:\-–.]?\s*")
-DOB_LABELS = re.compile(r"(?i)(?<![a-z])(dob|d\.\s*o\.\s*b\.?|date\s*of\s*birth|birth\s*date|born\s*on|janm\s*tithi|जन्म\s*(?:तिथि|दिनांक|तारीख)?)\s*[:\-–=]?\s*")
+DOB_LABELS = re.compile(r"(?i)(?<![a-z])(dob|d\.\s*o\.\s*b\.?|date\s*of\s*birth|birth\s*date|born\s*on|janm\s*tithi|जन्म\s*(?:तिथि|दिनांक|तारीख)?)(?:\s*[/&]\s*age)?\s*[:\-–=]?\s*")
 
 RELATION_RE = re.compile(
     r"(?<![A-Za-z])(S\s*/\s*[Oo]|D\s*/\s*[Oo]|W\s*/\s*[Oo]|C\s*/\s*[Oo]|H\s*/\s*[Oo]|F\s*/\s*[Oo]|M\s*/\s*[Oo]|B\s*/\s*[Oo]|Son\s+of|Daughter\s+of|Wife\s+of|Husband\s+of|Father\s+of|Mother\s+of|"
@@ -210,7 +212,8 @@ DOCTOR_RE = re.compile(
     r"|(?:डॉ|डा|डॉक्टर)\.?\s*[\u0900-\u097F]+(?:\s+[\u0900-\u097F]+){0,2}"
 )
 ORG_RE = re.compile(
-    r"(?:[A-Z][A-Za-z]+\s+){0,4}(?:Hospital|Clinic|Pathology|Diagnostics|Diagnostic|Laboratory|Labs?|Sadan|Centre|Center|"
+    r"(?:[A-Z][A-Za-z'’]+\s+){0,4}(?:Hospitals?|Clinic|Pathology|Diagnostics|Diagnostic|Laboratory|Labs?|Sadan|Centre|Center|"
+    r"University|Institute|Sansthan|Medical\s+University|"
     r"Nursing\s+Home|Medical\s+College|Trust|PHC|CHC)\b(?:\s*,?\s*[A-Z][a-z]+)?"
     r"|(?:District|Community|Primary)\s+(?:Hospital|Health\s+Centre)\s+[A-Z][a-z]+"
 )
@@ -458,10 +461,12 @@ class Detector:
                 spans.append(Span(m.start(), m.end(), "GOVID", value=m.group(0).upper()))
         for m in RE_LONGNUM.finditer(f):     # 9+ digit runs are never doses, vitals, labs, dates or ages
             spans.append(Span(m.start(), m.end(), "LONGNUM", value=m.group(0)))
-        for rx, kind in ((RE_EMAIL, "EMAIL"), (RE_ABHA_ADDR, "ABHA_ADDR")):
+        for rx, kind in ((RE_EMAIL, "EMAIL"), (RE_EMAIL_OBF, "EMAIL"), (RE_ABHA_ADDR, "ABHA_ADDR")):
             for m in rx.finditer(f):
                 spans.append(Span(m.start(), m.end(), kind, value=m.group(0)))
         for m in RE_ABHA.finditer(f):
+            spans.append(Span(m.start(), m.end(), "ABHA", value=re.sub(r"\D", "", m.group(0))))
+        for m in RE_VID.finditer(f):         # Aadhaar Virtual ID (16 digits)
             spans.append(Span(m.start(), m.end(), "ABHA", value=re.sub(r"\D", "", m.group(0))))
         for m in RE_AADHAAR.finditer(f):
             d = re.sub(r"\D", "", m.group(0))
