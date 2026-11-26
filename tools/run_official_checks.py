@@ -50,8 +50,12 @@ def main():
         clone = Path(td) / "clean_clone"
         sh(["git", "clone", "--quiet", str(ROOT), str(clone)])
         rc, txt = sh([sys.executable, str(KIT / "check_submission.py"), "--repo", str(clone), "--run"])
-        txt = txt.replace(str(clone), "<clean clone of HEAD>")
         lines += ["## check_submission.py (clean clone of HEAD)", "$ python3 kit/check_submission.py --repo <clean clone> --run", txt, f"exit {rc}", ""]
+        tmp_forms = {td, os.path.realpath(td)}
+        for i, ln in enumerate(lines):
+            for t in sorted(tmp_forms, key=len, reverse=True):
+                ln = ln.replace(t, "<tmp>")
+            lines[i] = ln.replace("/private<tmp>", "<tmp>")
     res = ROOT / "docs" / "results"
     res.mkdir(parents=True, exist_ok=True)
     (res / "official_practice_checks.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
