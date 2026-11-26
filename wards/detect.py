@@ -186,11 +186,11 @@ VERB_CTX = re.compile(
     r"collected\s+by|received\s+from|consent\s+(?:given|signed)\s+by|report\s+of|on\s+behalf\s+of|"
     r"attendant|relative|husband|wife|son|daughter|father|mother|brother|sister)\s+(?:is\s+|named\s+|mr\.?\s+|mrs\.?\s+)?"
 )
-GENERIC_LABEL = re.compile(r"(?:^|(?<=[\n;,.|]))\s*([A-Za-z][A-Za-z'’ &/()]{1,30}?|[\u0900-\u097F][\u0900-\u097F ]{0,20}?)\s*(?:[:=]|\s[-–]\s|[-–](?=\s))\s*", re.M)
+GENERIC_LABEL = re.compile(r"(?:^|(?<=[\n;,.|]))\s*([A-Za-z][A-Za-z'’ &/()]{1,30}?|[\u0900-\u097F][\u0900-\u097F ]{0,20}?)(?:\s*(?:no\.?\s*)?#?\d{1,2})?\s*(?:[:=]|\s[-–]\s|[-–](?=\s))\s*", re.M)
 NAME_WORD = re.compile(r"(?<![a-z])(name|naam|nam|नाम)(?![a-z])")
 PATIENT_ROLE_WORD = re.compile(r"(?<![a-z])(patient|pt|beneficiary|insured|member|client|rogi|mareez|mariz|रोगी|मरीज़|मरीज|applicant|claimant|subscriber|holder|proband)(?![a-z])")
 REL_ROLE_WORD = re.compile(r"(?<![a-z])(attendant|relative|guardian|abhibhavak|अभिभावक|परिजन|parijan|kin|nok|husband|wife|father|mother|son|daughter|spouse|parent|nominee|emergency|contact person|escort|bystander|pati|patni|pita|mata)(?![a-z])")
-ROLE_WORD = re.compile(PATIENT_ROLE_WORD.pattern + "|" + REL_ROLE_WORD.pattern + r"|(?<![a-z])(contact|informant|caller|witness|donor|recipient|visitor|referred by patient)(?![a-z])")
+ROLE_WORD = re.compile(PATIENT_ROLE_WORD.pattern + "|" + REL_ROLE_WORD.pattern + r"|(?<![a-z])(contacts?|informants?|callers?|witness(?:es)?|donors?|recipients?|visitors?|referred by patient)(?![a-z])")
 CLINICAL_LABEL = re.compile(r"(?<![a-z])(diagnosis|advice|adv|rx|complaint|complaints|c/o|history|h/o|k/c/o|ward|bed|consultant|doctor|dr|surgeon|department|dept|test|result|investigation|impression|plan|procedure|medication|medicine|drug|dose|frequency|vitals|bp|pulse|temp|spo2|weight|height|bmi|remarks?|notes?|course|treatment|status|hospital|unit|specimen|sample|lab|room|date|time|age|sex|gender|address|village|district|tehsil|state|pin|mobile|phone|email|uhid|mrn|id|no|number)(?![a-z])")
 ROLE_NOUN = re.compile(r"(?<![A-Za-z])(?i:patient|pt\.?|mareez|mariz|rogi|beneficiary|visitor|neighbou?r|caretaker|attendant|escort|bystander)\s+(?=[A-Z\u0900-\u097F])"
                        r"|(?:मरीज़|मरीज|रोगी|पड़ोसी|पड़ोसन|परिजन|रिश्तेदार|परिचारक|मित्र|सहेली|दोस्त)\s+(?=[\u0900-\u097F])")
@@ -229,7 +229,16 @@ ORG_RE = re.compile(
 )
 CLINICAL_WARD = re.compile(r"(?i)\bward\s*(?:no\.?\s*)?\d{1,2}\s*\((?:[a-z ]+)\)|\bward\s*/\s*bed\b|\bward\s*\d{1,2}\s*/\s*bed\s*\d+|\bbed\s*(?:no\.?\s*)?\d+")
 COMPLAINT_RE = re.compile(r"(?i)\b(?:k\s*/\s*c\s*/\s*o|h\s*/\s*o|c\s*/\s*o)\b\s*:?\s*(?=[a-z(]|no\b|known)|\bk/c/o\b")
-EPONYM_RE = re.compile(r"(?i)\b[A-Z][a-z]+(?:'s|’s|s)?\s+(?:disease|syndrome|palsy|sarcoma|lymphoma|anomaly|phenomenon|ulcer|test|sign|fracture)\b")
+EPONYM_RE = re.compile(r"(?i)\b(?-i:(?:[A-Z][a-z]+[\s\-]+){0,2})[A-Z][a-z]+(?:'s|’s|s)?\s+(?:disease|syndrome|palsy|sarcoma|lymphoma|anomaly|"
+                       r"phenomenon|ulcer|test|sign|fracture|nodule|node|reflex|manoeuvre|maneuver|triad|tumou?r|cyst|"
+                       r"hernia|gland|duct|operation|procedure|classification|criteria|score|scale|spots|cells|bodies)\b")
+# a brand or generic drug written straight before its dose ("Syndopa 110 mg", "Telma 40 mg"): medicine, not a name
+DRUG_DOSE = re.compile(r"\b[A-Z][A-Za-z]+(?:[\-\s][A-Z0-9][A-Za-z0-9]*)?\s+\d+(?:\.\d+)?(?:\s*/\s*\d+(?:\.\d+)?)?\s*"
+                       r"(?:mg|mcg|µg|ug|gm|g|ml|mL|IU|iu|units?|U)\b(?!\s*/\s*(?:dL|L|kg|min|hr)\b)")
+# salutations: "Dear Mr. Harish", "प्रिय सीमा", "आदरणीय श्री ..."
+SALUTATION = re.compile(r"(?:\bDear|प्रिय|आदरणीय)\s+")
+SALUTATION_NOT_NAME = re.compile(r"(?i)(?:sir|madam|ma'?am|doctor|dr|team|colleague|all|patient|parents?|customer|member|friends?|"
+                                 r"महोदय|महोदया|सर|डॉक्टर|डॉ|साहब|मित्रों|साथियों)\b")
 
 # ------------------------------------------------------------------ address parts
 HOUSE_RE = re.compile(
@@ -454,6 +463,10 @@ class Detector:
             spans.append(Span(m.start(), m.end(), "PROTECT", value="ward"))
         for m in EPONYM_RE.finditer(t):
             spans.append(Span(m.start(), m.end(), "PROTECT", value="eponym"))
+        for m in DRUG_DOSE.finditer(t):
+            w = m.group(0).split()[0]
+            if not gz.is_known_name_token(w) or not re.search(r"(?i)\b(?:mr|mrs|ms|shri|smt|w/o|s/o|d/o)\b", t[max(0, m.start() - 12):m.start()]):
+                spans.append(Span(m.start(), m.start() + len(w), "PROTECT", value="drug"))
         for m in re.finditer(r"(?i:\basha\s+(?:worker|karyakarta|sahyogini|kendra)\b)|\bASHA\b(?![ \t]+[A-Z][A-Za-z]+)", t):
             spans.append(Span(m.start(), m.end(), "PROTECT", value="asha"))
 
@@ -557,6 +570,8 @@ class Detector:
         for m in GENERIC_LABEL.finditer(t):
             label = m.group(1).strip()
             low = label.lower()
+            if re.search(r"[a-z]{4}s$", low) and not re.search(r"(?:ss|us|is)$", low):
+                low = low[:-1]          # plural labels ("Attendants:", "Witnesses:") read like the singular
             named = bool(NAME_WORD.search(low))
             if CLINICAL_LABEL.search(low) and not named:
                 continue              # "Diagnosis:", "Age:" never start a name; "Name & Age:" does
@@ -568,6 +583,22 @@ class Detector:
                 continue
             r = "relative" if REL_ROLE_WORD.search(low) else ("patient" if named or PATIENT_ROLE_WORD.search(low) else "other")
             spans.append(Span(s0, e0, "NAME", role=r, value=" ".join(toks), meta={"src": "label"}))
+            # "Visitors: Raju, Pinky and Bablu": a list of names after one label
+            for _ in range(6):
+                lm = re.compile(r"\s*(?:,|&|\band\b|\baur\b|और)\s*(?:and\s+)?").match(t, e0)
+                if not lm:
+                    break
+                s1, e1, toks1 = _name_run(t, lm.end(), allow_lower=False, max_tokens=3)
+                if not toks1 or s1 != lm.end():
+                    break
+                spans.append(Span(s1, e1, "NAME", role=r, value=" ".join(toks1), meta={"src": "label"}))
+                e0 = e1
+        for m in SALUTATION.finditer(t):
+            if SALUTATION_NOT_NAME.match(t, m.end()):
+                continue
+            s0, e0, toks = _name_run(t, m.end(), allow_lower=False, max_tokens=3)
+            if toks:
+                spans.append(Span(s0, e0, "NAME", role="", value=" ".join(toks), meta={"src": "label"}))
         # "<NAME RUN> (F/47)", "Hmar, Lalrinpuii (47Y/F)": a name run right before an age/sex bracket
         for m in AGE_SEX_BRACKET.finditer(t):
             left = t[max(0, m.start() - 60):m.start()]

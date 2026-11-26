@@ -249,6 +249,15 @@ CASES = [
  ("Patient Name : SUNIL KUMAR S", ["SUNIL KUMAR"], []),
  ("VID: 9182 7364 5546 1029", ["9182 7364 5546 1029"], []),
  ("mail: ramesh.k[at]gmail[dot]com", ["ramesh.k[at]gmail[dot]com"], []),
+ # round 7: numbered and plural labels with name lists, drug before dose, multi-word eponyms, salutations
+ ("Witness 2: Gurnam", ["Gurnam"], []),
+ ("Attendants: Chintu, Golu and Monu", ["Chintu", "Golu", "Monu"], []),
+ ("Contact no. 2: Bhavna", ["Bhavna"], []),
+ ("on Tab Dytor 10 mg OD and Rosuvas 10 mg HS", [], ["Dytor 10 mg OD", "Rosuvas 10 mg HS"]),
+ ("Arnold-Chiari malformation; Virchow node palpable", [], ["Virchow node"]),
+ ("प्रिय रेखा, कृपया रिपोर्ट लें", ["रेखा"], []),
+ ("Dear Sir, kindly admit", [], ["Sir"]),
+ ("Dear Doctor, please review", [], ["Doctor"]),
  # round 5: relation word + bracketed name, (Name, 41F), Devanagari hospital ward, Devanagari name before a bare phone
  ("Informant: mother (Saroja)", ["Saroja"], []),
  ("History given by husband (Dilip Kumar Rawat)", ["Dilip Kumar Rawat"], []),
