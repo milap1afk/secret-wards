@@ -39,6 +39,11 @@ def words_of(label: str) -> str:
 _RULES = [
     # order matters: first match wins
     (r" (ifsc|ifsc code|branch code|micr) ", KEEP),
+    (r" (dak suchak|dak kod|dak sankhya|dak pin|post code|postcode|postal index) ", PIN),
+    (r" (durbhash|doorbhash|dur bhash|sampark no|sampark sutra) ", PHONE),
+    (r" (e dak|edak|ई मेल) ", EMAIL),
+    (r" (janpad|janapad) ", DISTRICT),
+    (r" (gali mohalla|gali|mohalla tola) ", LOCALITY),
     (r" (ref doctor|ref dr|ref by|referred by|referr?ed|referring|consultant|doctor|dr|physician|surgeon|treating|attending|author|performer|practitioner|daktar|doktar) ", DOCTOR),
     (r" (hospital|facility|organization|organisation|lab name|laboratory|centre|center|clinic|provider|insurer|tpa) (name )?$", ORG),
     (r" (abha|health) ?(address|addr) ", ABHA_ADDR),
@@ -68,7 +73,7 @@ _RULES = [
     (r" (mohalla|locality|colony|area|ward no|sector) ", LOCALITY),
     (r" (address|addr|street|line|house|makan|pata|residence|location address|res) ", ADDRESS),
     (r" (patient name|patient|pt name|name|naam|full name|nam|beneficiary|insured|rogi|rogi ka nam|mareez|mariz|marij|labharthi|purna nam|pura nam|pora nam) ", NAME),
-    (r" (date|dt|on|time|timestamp|tarikh|tithi|collected|reported|admitted|discharged|registered|visit|generated|updated|created|exported) ", DATE),
+    (r" (date|dt|on|time|timestamp|tarikh|tithi|dinank|collected|reported|admitted|discharged|registered|visit|generated|updated|created|exported) ", DATE),
 ]
 _COMPILED = [(re.compile(_vnorm(p)), s) for p, s in _RULES]
 
@@ -183,3 +188,67 @@ def classify_json(key: str, ancestors: list, resource_type: str = "") -> str:
 
 
 NAME_UNKNOWN = "name_unknown"
+
+
+# ---------------------------------------------------------------- content-based typing
+_VERHOEFF_D = [[0, 1, 2, 3, 4, 5, 6, 7, 8, 9], [1, 2, 3, 4, 0, 6, 7, 8, 9, 5], [2, 3, 4, 0, 1, 7, 8, 9, 5, 6],
+               [3, 4, 0, 1, 2, 8, 9, 5, 6, 7], [4, 0, 1, 2, 3, 9, 5, 6, 7, 8], [5, 9, 8, 7, 6, 0, 4, 3, 2, 1],
+               [6, 5, 9, 8, 7, 1, 0, 4, 3, 2], [7, 6, 5, 9, 8, 2, 1, 0, 4, 3], [8, 7, 6, 5, 9, 3, 2, 1, 0, 4],
+               [9, 8, 7, 6, 5, 4, 3, 2, 1, 0]]
+_VERHOEFF_P = [[0, 1, 2, 3, 4, 5, 6, 7, 8, 9], [1, 5, 7, 6, 2, 8, 3, 0, 9, 4], [5, 8, 0, 3, 7, 9, 6, 1, 4, 2],
+               [8, 9, 1, 6, 0, 4, 3, 5, 2, 7], [9, 4, 5, 3, 1, 2, 6, 8, 7, 0], [4, 2, 8, 6, 5, 7, 3, 9, 0, 1],
+               [2, 7, 9, 3, 8, 0, 6, 4, 1, 5], [7, 0, 4, 6, 9, 1, 3, 2, 5, 8]]
+
+
+def verhoeff_ok(digits: str) -> bool:
+    c = 0
+    for i, ch in enumerate(reversed(digits)):
+        c = _VERHOEFF_D[c][_VERHOEFF_P[i % 8][int(ch)]]
+    return c == 0
+
+
+_V_PHONE = re.compile(r"^(?:\+?91[\s\-]?|0)?[6-9](?:[\s\-.]?\d){9}$")
+_V_DATE = re.compile(r"^(?:\d{1,2}[/.\-]\d{1,2}[/.\-]\d{2,4}|\d{4}-\d{2}-\d{2}(?:T[\d:.+\-Z]+)?)$")
+_V_PIN = re.compile(r"^[1-8]\d{2}\s?\d{3}$")
+_ADDRESSY = re.compile(r"addr|pata|address|residence|location|postal|post|dak|zip|ghar")
+
+
+def value_type(values, key: str = "", ancestors=()) -> str:
+    """Type a column / JSON path by its values when its name says nothing. Returns a sem or "".
+
+    Conservative on purpose: every rule needs 80% of non-empty values to agree, Aadhaar needs a valid
+    Verhoeff checksum, and a 6-digit value counts as a PIN only inside an address-like field."""
+    vals = [str(v).strip() for v in values if v is not None and not isinstance(v, bool) and str(v).strip()][:300]
+    if len(vals) < 1:
+        return ""
+    n = len(vals)
+
+    def share(pred):
+        return sum(1 for v in vals if pred(v)) / n
+    digits = [re.sub(r"[\s\-]", "", v) for v in vals]
+    if share(lambda v: bool(_V_PHONE.match(v))) >= 0.8:
+        return PHONE
+    if sum(1 for d in digits if len(d) == 12 and d.isdigit() and d[0] in "23456789" and verhoeff_ok(d)) / n >= 0.8:
+        return AADHAAR
+    if share(lambda v: bool(_V_DATE.match(v))) >= 0.8:
+        return DATE
+    ctx = (key + " " + " ".join(str(a) for a in ancestors)).lower()
+    if share(lambda v: bool(_V_PIN.match(v))) >= 0.8 and _ADDRESSY.search(ctx):
+        return PIN
+    from .detect import is_name_token   # local import: fields is imported by detect's users
+    def namey(v):
+        toks = v.replace(",", " ").split()
+        return 1 <= len(toks) <= 4 and not re.search(r"\d", v) and all(is_name_token(t.strip(".")) for t in toks)
+    if str(key).lower() in _STRUCTURAL_KEYS:
+        return ""
+    multi = sum(1 for v in vals if len(v.split()) >= 2) / n
+    if n >= 2 and share(namey) >= 0.7 and multi >= 0.5:
+        return NAME_UNKNOWN
+    return ""
+
+
+_STRUCTURAL_KEYS = {"resourcetype", "status", "code", "system", "use", "type", "unit", "url", "id", "fullurl",
+                    "reference", "display", "text", "div", "contenttype", "version", "profile", "category", "class",
+                    "intent", "mode", "kind", "format", "language", "department", "dept", "ward", "test", "panel",
+                    "drug", "medicine", "procedure", "diagnosis", "specialty", "speciality", "hospital", "facility"}
+

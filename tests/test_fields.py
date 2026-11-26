@@ -26,9 +26,30 @@ EXPECT = {
 }
 
 
+VALUE_CASES = [  # (values, key, ancestors, expected sem) for columns whose NAME says nothing
+    (["241606", "229073"], "dak_suchak", ["pata"], "pin"),
+    (["241606", "229073"], "x9", ["pata"], "pin"),
+    (["137130", "250000"], "value", ["results"], ""),           # platelet counts are not PINs
+    (["8599253525", "+91 98765 43210"], "col7", [], "phone"),
+    (["234123412346", "499118665246"], "col8", [], "aadhaar"),   # Verhoeff-valid
+    (["234123412345", "499118665247"], "col9", [], ""),          # 12 digits, invalid checksum
+    (["Lalita Gaikwad", "Ramesh Rao", "Sohan Lal Murmu"], "col3", [], "name_unknown"),
+    (["Observation", "Encounter", "Composition"], "resourceType", [], ""),
+    (["Medicine", "Surgery", "Pulmonology"], "col4", [], ""),
+    (["2024-06-28", "2025-01-02"], "darj", [], "date"),
+]
+
+
 def main():
+    from wards.fields import value_type
     fails = 0
     n = 0
+    for vals, key, anc, want in VALUE_CASES:
+        n += 1
+        got = value_type(vals, key, anc)
+        if got != want:
+            fails += 1
+            print(f"values {vals[:2]} key={key!r}: expected {want!r} got {got!r}")
     for want, labels in EXPECT.items():
         for lab in labels:
             n += 1
@@ -36,7 +57,7 @@ def main():
             if got != want:
                 fails += 1
                 print(f"{lab!r:28} expected {want:9} got {got}")
-    print(f"{n} headers, {fails} failures")
+    print(f"{n} headers and value columns, {fails} failures")
     return 1 if fails else 0
 
 

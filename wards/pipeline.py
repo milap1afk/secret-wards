@@ -455,6 +455,11 @@ class Pipeline:
 
     def _units_csv(self, job: FileJob) -> None:
         sems = [F.classify_header(h) for h in job.header]
+        for c, sem in enumerate(sems):       # unknown header: type the column by its values
+            if sem == F.TEXT:
+                vt = F.value_type([r[c] for r in job.rows if c < len(r)], job.header[c])
+                if vt:
+                    sems[c] = vt
         job.extra_sems = sems
         for i, row in enumerate(job.rows):
             u = Unit(job.rel, f"row:{i}", "row", date_order=job.date_order)
@@ -489,6 +494,21 @@ class Pipeline:
             target.leaves.append(leaf)
         job.units = ([doc_unit] if doc_unit is not None else [units[k] for k in sorted(units)])
         job.file_unit = file_unit
+        # unknown keys: type each JSON path (array indices folded) by the values found under it
+        groups: dict = {}
+        for u in job.units + [file_unit]:
+            for lf in u.leaves:
+                if lf.sem == F.TEXT and lf.path and isinstance(lf.path[-1], str):
+                    sig = tuple("[]" if isinstance(x, int) else x for x in lf.path)
+                    groups.setdefault(sig, []).append(lf)
+        is_fhir = isinstance(job.data, dict) and isinstance(job.data.get("resourceType"), str)
+        for sig, lfs in groups.items():
+            vt = F.value_type([lf.value for lf in lfs], str(sig[-1]), [x for x in sig[:-1] if x != "[]"])
+            if vt == F.NAME_UNKNOWN and is_fhir:
+                vt = ""                  # FHIR semantics are explicit; never guess names from values there
+            if vt:
+                for lf in lfs:
+                    lf.sem = vt
 
     def _units_xml(self, job: FileJob) -> None:
         u = Unit(job.rel, "doc", "doc", date_order=job.date_order)
@@ -608,6 +628,8 @@ class Pipeline:
             self._add_name(strip_rel_marker(s)[1], "relative")
         elif sem == F.OTHER_PERSON:
             self._add_name(s, "other")
+        elif sem == F.NAME_UNKNOWN and _looks_like_person(s):
+            self._add_name(s, "")        # value-typed name column: feeds the lexicon, never linking evidence
         elif sem in (F.UHID, F.ENC):
             c = id_core(s)
             if c:
