@@ -460,7 +460,10 @@ class Pipeline:
             for u in job.units:
                 rid += 1
                 u.ev = Evidence(rid=rid, file=u.file, loc=u.loc)
-                self._evidence(u)
+                try:
+                    self._evidence(u)
+                except Exception:  # noqa: BLE001 - one odd record must not stop the release
+                    u.ev = Evidence(rid=rid, file=u.file, loc=u.loc, multi=True)
                 self.units.append(u)
                 self.evidence.append(u.ev)
         # second lexicon: add names found by labels in free text
@@ -1383,8 +1386,23 @@ def run(inp: Path, out: Path) -> int:
     pl.ingest()
     pl.resolve_date_orders()
     pl.build_units()
-    pl.harvest()
-    pl.link()
+    try:
+        pl.harvest()
+    except Exception:  # noqa: BLE001 - degrade: detect without the dataset lexicon
+        pl.detector = Detector(pl.lex if pl.lex.phrase_re is not None or not pl.lex.name_tokens else Lexicon())
+        for job in pl.jobs:
+            for u in job.units:
+                if u.ev is None:
+                    u.ev = Evidence(rid=id(u), file=u.file, loc=u.loc, multi=True)
+                if u not in pl.units:
+                    pl.units.append(u)
+                    pl.evidence.append(u.ev)
+    try:
+        pl.link()
+    except Exception:  # noqa: BLE001 - degrade: no linking (every record unlinked), still a full release
+        for u in pl.units:
+            u.cluster, u.psn = None, None
+            u.shift = shift_days("unit#" + u.file + "#" + u.loc)
     pl.rare = rare_mod.find_rare(pl.units, int(POLICY.get("rare_k", 3)))
     records = pl.sanitize_all()
     exported = {j.out_rel for j in pl.jobs if j.status == "sanitized"}
