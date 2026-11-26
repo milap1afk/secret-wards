@@ -75,15 +75,24 @@ class Evidence:
     multi: bool = False                              # unit mentions several patients: never link
 
     def strong(self) -> list:
+        """Identifiers that belong to ONE person (hospital IDs, Aadhaar, ABHA)."""
         out = []
-        for kind, vals in (("uhid", self.uhids), ("enc", self.encs), ("aadhaar", self.aadhaar), ("abha", self.abha),
-                           ("pan", self.pan), ("ins", self.ins), ("email", self.email)):
+        for kind, vals in (("uhid", self.uhids), ("enc", self.encs), ("aadhaar", self.aadhaar), ("abha", self.abha)):
+            for v in vals:
+                out.append((kind, v))
+        return out
+
+    def shared(self) -> list:
+        """Identifiers a family can share (payer PAN, family insurance / policy, family e-mail): like phones,
+        they link only together with an agreeing given name."""
+        out = []
+        for kind, vals in (("pan", self.pan), ("ins", self.ins), ("email", self.email)):
             for v in vals:
                 out.append((kind, v))
         return out
 
     def has_identity(self) -> bool:
-        return bool(self.names or self.weak_names or self.strong() or self.phones)
+        return bool(self.names or self.weak_names or self.strong() or self.shared() or self.phones)
 
 
 class _Cluster:
@@ -99,7 +108,7 @@ class _Cluster:
         self.gender = set(ev.gender)
         self.ages = list(ev.ages)
         self.villages = set(ev.villages)
-        self.anchored = bool(ev.strong() or ev.phones)
+        self.anchored = bool(ev.strong() or ev.shared() or ev.phones)
         for n in ev.names + ev.weak_names:
             ks = tok_keys(n)
             self.name_keys |= ks
@@ -121,8 +130,9 @@ class _Cluster:
 
 
 def shared_signals(x: "Evidence", y: "Evidence") -> int:
+    """Independent PERSON-level signals two records share (family-shareable identifiers do not count)."""
     n = 0
-    for attr in ("uhids", "encs", "aadhaar", "abha", "pan", "ins", "email", "phones", "dob"):
+    for attr in ("uhids", "encs", "aadhaar", "abha", "dob"):
         if getattr(x, attr) & getattr(y, attr):
             n += 1
     return n
@@ -141,6 +151,8 @@ def _conflict(a: _Cluster, b: _Cluster, *, strict_names: bool, names_ok: bool = 
         return True
     if strict_names and a.given_keys and b.given_keys and not (a.given_keys & b.given_keys):
         return True
+    if strict_names and a.villages and b.villages and not (a.villages & b.villages):
+        return True               # same name and relative, different villages: homonyms, not one person
     return False
 
 
@@ -171,6 +183,33 @@ class Linker:
         del self.cl[rb]
         return True
 
+    def _matches(self, r, by_given) -> list:
+        """Clusters that share a given name AND a second clue with cluster r, without any conflict."""
+        c = self.cl[r]
+        cands = set()
+        for k in c.given_keys:
+            cands |= by_given.get(k, set())
+        cands = {self.find(x) for x in cands} - {r}
+        matches = []
+        for o in sorted(cands):
+            oc = self.cl.get(o)
+            if oc is None or _conflict(c, oc, strict_names=True) or not (c.given_keys & oc.given_keys):
+                continue
+            if c.dob and oc.dob and (c.dob & oc.dob):
+                matches.append(o)
+            elif c.rel_keys and oc.rel_keys and (c.rel_keys & oc.rel_keys):
+                matches.append(o)
+            elif c.villages and oc.villages and (c.villages & oc.villages) and c.ages and oc.ages and \
+                    min(abs(x - y) for x in c.ages for y in oc.ages) <= 2:
+                matches.append(o)
+        anchored = [o for o in matches if self.cl[o].anchored]
+        if len(anchored) == 1 and (c.anchored is False or len(matches) == 1):
+            # the other candidates must be compatible with the anchored one (duplicates of this fragment)
+            a0 = self.cl[anchored[0]]
+            if all(not _conflict(self.cl[o], a0, strict_names=True) for o in matches if o != anchored[0]):
+                return anchored
+        return matches
+
     def run(self) -> dict:
         usable = [e for e in self.ev if not e.multi and e.has_identity()]
         # ---- phase 1: strong identifiers
@@ -184,11 +223,13 @@ class Linker:
                 # two independent strong signals outweigh a name mismatch (e.g. a transliteration miss)
                 ok = shared_signals(self.byrid[rids[0]], self.byrid[r]) >= 2
                 self.union(rids[0], r, strict_names=False, names_ok=ok)
-        # ---- phase 1b: phones (need a compatible given name)
+        # ---- phase 1b: phones and family-shareable IDs (need a compatible given name)
         pidx: dict = {}
         for e in usable:
             for p in e.phones:
-                pidx.setdefault(p, []).append(e.rid)
+                pidx.setdefault(("phone", p), []).append(e.rid)
+            for key in e.shared():
+                pidx.setdefault(key, []).append(e.rid)
         for p in sorted(pidx):
             rids = pidx[p]
             for r in rids[1:]:
@@ -213,34 +254,15 @@ class Linker:
                 c = self.cl[r]
                 if not c.given_keys:
                     continue
-                cands = set()
-                for k in c.given_keys:
-                    cands |= by_given.get(k, set())
-                cands = {self.find(x) for x in cands} - {r}
-                matches = []
-                for o in sorted(cands):
-                    oc = self.cl.get(o)
-                    if oc is None or _conflict(c, oc, strict_names=True):
-                        continue
-                    if not (c.given_keys & oc.given_keys):
-                        continue
-                    # full-name agreement when both sides know a surname
-                    clue = False
-                    if c.dob and oc.dob and (c.dob & oc.dob):
-                        clue = True
-                    elif c.rel_keys and oc.rel_keys and (c.rel_keys & oc.rel_keys):
-                        clue = True
-                    elif c.villages and oc.villages and (c.villages & oc.villages) and c.ages and oc.ages and \
-                            min(abs(x - y) for x in c.ages for y in oc.ages) <= 2:
-                        clue = True
-                    if clue:
-                        matches.append(o)
-                anchored = [o for o in matches if self.cl[o].anchored]
-                if len(anchored) == 1 and (c.anchored is False or len(matches) == 1):
-                    matches = anchored
+                matches = self._matches(r, by_given)
                 if len(matches) == 1:
                     # uniqueness the other way round: the match must not also fit another cluster
                     o = matches[0]
+                    rev = self._matches(o, by_given)
+                    cr = self.cl[r]
+                    if r not in rev or not all(x == r or (not self.cl[x].anchored and
+                                                          not _conflict(self.cl[x], cr, strict_names=True)) for x in rev):
+                        continue          # o also fits a different person: ambiguous, do not link
                     if self.union(r, o, strict_names=True):
                         changed = True
             if not changed:
