@@ -98,6 +98,22 @@ def _():
     return a, b
 
 
+@case("note with name + phone fitting father and son of the same name on one phone is linked to neither", False)
+def _():
+    note = ev(names=[["Dinesh", "Saxena"]], phones={"9811100077"})
+    father = ev(names=[["Dinesh", "Saxena"]], uhids={"5550001"}, dob={"1958-02-11"}, phones={"9811100077"})
+    son = ev(names=[["Dinesh", "Saxena"]], uhids={"5550002"}, dob={"1986-10-30"}, phones={"9811100077"})
+    return note, father, son
+
+
+@case("CONTROL: note with name + phone links when only one patient of that name has the phone", True)
+def _():
+    note = ev(names=[["Dinesh", "Saxena"]], phones={"9811100078"})
+    father = ev(names=[["Dinesh", "Saxena"]], uhids={"5550003"}, dob={"1958-02-11"}, phones={"9811100078"})
+    wife = ev(names=[["Kusum", "Saxena"]], uhids={"5550004"}, dob={"1962-06-01"}, phones={"9811100078"})
+    return note, father, wife
+
+
 def main():
     fails = 0
     for name, want, fn in CASES:

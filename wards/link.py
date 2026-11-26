@@ -230,16 +230,33 @@ class Linker:
                 pidx.setdefault(("phone", p), []).append(e.rid)
             for key in e.shared():
                 pidx.setdefault(key, []).append(e.rid)
+        def fits(a, b):
+            ca, cb = self.cl[a], self.cl[b]
+            if _conflict(ca, cb, strict_names=True):
+                return False
+            return bool(ca.given_keys & cb.given_keys) or not ca.name_keys or not cb.name_keys
+
         for p in sorted(pidx):
-            rids = pidx[p]
-            for r in rids[1:]:
-                ca, cb = self.cl[self.find(rids[0])], self.cl[self.find(r)]
-                if ca is cb:
-                    continue
-                if ca.given_keys and cb.given_keys and (ca.given_keys & cb.given_keys):
-                    self.union(rids[0], r, strict_names=True)
-                elif not ca.name_keys or not cb.name_keys:
-                    self.union(rids[0], r, strict_names=True)
+            # a cluster joins others through a shared phone / family ID only when everything it fits is one
+            # person (all mutually compatible): father and son "Rajesh Verma" on one phone stay apart, and a
+            # note that fits both is left unlinked instead of joined to whichever came first
+            for _ in range(len(pidx[p])):
+                roots = sorted({self.find(r) for r in pidx[p]})
+                if len(roots) < 2 or len(roots) > 50:      # > 50 people on one number: a helpline, not a person
+                    break
+                merged = False
+                for a in roots:
+                    comp = [b for b in roots if b != a and fits(a, b)]
+                    grp = set(comp) | {a}
+                    # one person both ways: the group is mutually compatible and nothing in it fits anyone outside
+                    if comp and all(fits(x, y) for i, x in enumerate(comp) for y in comp[i + 1:]) and \
+                            all(not fits(b, c) for b in comp for c in roots if c not in grp):
+                        for b in comp:
+                            merged = self.union(a, b, strict_names=True) or merged
+                        if merged:
+                            break
+                if not merged:
+                    break
         # ---- phase 2: name + second clue, only when unique
         for _round in range(2):
             changed = False
