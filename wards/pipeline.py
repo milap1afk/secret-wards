@@ -37,6 +37,9 @@ JSON_EXT = {".json", ".fhir", ".ndjson", ".jsonl"}
 MAX_JSON_DEPTH = 200
 
 
+TEHSIL_TEXT = re.compile(r"(Tehsil|Tahsil|Teh\.|तहसील)\s+(?!\[)(?:[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?|[\u0900-\u097F]+)")
+
+
 class Quarantine(Exception):
     pass
 
@@ -809,7 +812,10 @@ class Pipeline:
         if len(text) >= 16 and B64_RE.search(text):
             text = B64_RE.sub(b64sub, text)
         t2, spans = self._detect(text, address_ctx=address_ctx)
-        return self._render_text(t2, spans, u, sweep)
+        out = self._render_text(t2, spans, u, sweep)
+        if POLICY.get("location_level") == "district":
+            out = TEHSIL_TEXT.sub(lambda m: m.group(1) + " [TEHSIL]", out)
+        return out
 
     # ---------- leaf rendering (CSV cells and JSON leaves)
     def _render_leaf(self, lf: Leaf, u: Unit, sweep: set, ctx: dict):
@@ -881,8 +887,11 @@ class Pipeline:
             self._count("EMAIL")
             return "[EMAIL]"
         if sem == F.DOB:
-            r = shift_date_string(s, u.shift, u.date_order)
             self.n_generalized += 1
+            if POLICY.get("dob_policy") == "year":
+                r = parse_any_date(s, u.date_order)
+                return str(r[0].year) if r else "[DOB]"
+            r = shift_date_string(s, u.shift, u.date_order)
             return r if r is not None else "[DOB]"
         if sem == F.DATE:
             r = shift_date_string(s, u.shift, u.date_order)
@@ -909,7 +918,12 @@ class Pipeline:
         if sem == F.VILLAGE:
             self._count("VILLAGE")
             self.n_generalized += 1
+            if POLICY.get("location_level") == "district":
+                return ctx.get("district") or "[VILLAGE]"
             return ctx.get("tehsil") or ctx.get("district") or "[VILLAGE]"
+        if sem == F.TEHSIL and POLICY.get("location_level") == "district":
+            self.n_generalized += 1
+            return ctx.get("district") or "[TEHSIL]"
         if sem == F.LOCALITY:
             self._count("LOCALITY")
             return "[ADDRESS]"
@@ -1231,7 +1245,10 @@ def _has_pii_shape(s: str) -> bool:
 
 def _generalize_address(s: str) -> str:
     keep = []
-    for m in re.finditer(r"(?:Tehsil|Tahsil|तहसील)\s+[^,\-\n]+|(?:Distt?\.?|District|जिला)\s+[^,\-\n]+", s):
+    pat = r"(?:Distt?\.?|District|जिला)\s+[^,\-\n]+"
+    if POLICY.get("location_level") != "district":
+        pat = r"(?:Tehsil|Tahsil|तहसील)\s+[^,\-\n]+|" + pat
+    for m in re.finditer(pat, s):
         keep.append(re.sub(r"\s*[-–]\s*\d{6}\s*$", "", m.group(0).strip()))
     return ", ".join(["[ADDRESS]"] + keep)
 

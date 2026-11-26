@@ -17,7 +17,7 @@ import re
 from .policy import POLICY
 
 _SECRET = os.environ.get("RAKSHA_SECRET", "").encode("utf-8")
-_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"  # Crockford base32
+_ALPHABET = "ABCDEFGHJKMNPQRSTVWXYZ"  # letters only: a pseudonym must never look like a PIN, age or phone
 
 
 def _mac(*parts: str) -> bytes:
@@ -27,7 +27,11 @@ def _mac(*parts: str) -> bytes:
 
 def _code(digest: bytes, n: int) -> str:
     v = int.from_bytes(digest[:8], "big")
-    return "".join(_ALPHABET[(v >> (5 * i)) & 31] for i in range(n))
+    out = []
+    for _ in range(n):
+        v, r = divmod(v, len(_ALPHABET))
+        out.append(_ALPHABET[r])
+    return "".join(out)
 
 
 def pseudonym(cluster_key: str) -> str:

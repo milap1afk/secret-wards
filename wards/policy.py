@@ -1,6 +1,7 @@
 """Privacy policy loader. Reads config/policy.yaml (simple `key: value` lines, no PyYAML)."""
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 DEFAULTS = {
@@ -8,7 +9,7 @@ DEFAULTS = {
     "age_top_code": 85,           # ages >= this become "85+" (very old patients are rare)
     "date_shift_max_days": 180,   # per-patient secret date shift in [-max, -min] U [min, max]
     "date_shift_min_days": 7,
-    "village_policy": "tehsil",   # village -> tehsil (falls back to district)
+    "location_level": "tehsil",   # village -> tehsil, or "district": village and tehsil -> district
     "pin_policy": "prefix3",      # 229678 -> 229***
     "dob_policy": "shift",        # DOB shifted with the patient's own date shift
     "rare_k": 3,                  # quasi-identifier groups smaller than k are generalised harder
@@ -35,4 +36,4 @@ def load(path: Path) -> dict:
     return pol
 
 
-POLICY = load(Path(__file__).resolve().parent.parent / "config" / "policy.yaml")
+POLICY = load(Path(os.environ.get("WARDS_POLICY") or Path(__file__).resolve().parent.parent / "config" / "policy.yaml"))
