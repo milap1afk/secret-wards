@@ -119,6 +119,19 @@ never look like a PIN, phone or age.
 * `report.json` identifies files by SHA-256, never by name. Renamed files (a name or phone in the file
   name) are declared there.
 
+## Reproducing the checks
+
+```bash
+python3 tools/get_kit.py              # official toolkit -> ./kit (git-ignored), pinned to commit 6c0a85a
+python3 tools/run_official_checks.py  # official validate_output / check_dev / check_submission (clean clone)
+python3 tests/run_all.py              # every local suite; NOT VERIFIED (exit 2) when the kit is missing
+```
+
+The full, unedited output of the last official run is kept in
+[`docs/results/official_practice_checks.md`](docs/results/official_practice_checks.md), with the project and
+toolkit commits it ran on. `check_submission.py` is run on a clean clone of HEAD, so git-ignored files in a
+working copy (the kit, its practice PDF, a local `.venv`) cannot make it pass by accident.
+
 ## Measured results
 
 Every number below says what produced it. **Official** = the kit's own scripts (`check_dev.py`,
@@ -138,14 +151,20 @@ Every number below says what produced it. **Official** = the kit's own scripts (
 | same secret twice → identical; different secret → different; secret never written; input untouched | pass | – | official `check_submission.py --run` |
 | contextual precision (doctors, doses, C/O, eponyms…) | 1.000 | 1.000 | local `tools/score.py` |
 | token retention (over-redaction) | 0.986 | – | local `tools/retention.py` |
+| FHIR structure (ids, required elements, value sets, date/instant syntax, base64, references) | 19/19 bundles, 0 new issues | 19/19, 0 new issues | local `tools/fhir_check.py`¹ |
 | run time / peak memory | 2.4 s / 31 MB; 20× data 28 s / 330 MB | 2.4 s / 31 MB | `report.json`, `/usr/bin/time` |
 
-¹ `tools/chaos.py` builds the variant and its answer key from the practice data (the checkers are official,
-the dataset is ours). It replaces all 115 Latin name tokens of patients and relatives with names absent from
+¹ The kit ships no FHIR validator (the official one, `raksha_eval/scoring/fhir.py`, is not public), so FHIR
+validity is local only: `tools/fhir_check.py` reports 0 issues on the organisers' own input bundles (sanity)
+and `tests/test_fhir_valid.py` confirms it flags 10 kinds of breakage.
+
+The unseen-format variant is built by `tools/chaos.py` from the practice data (the checkers are official,
+the dataset and its answer key are ours). It replaces all 115 Latin name tokens of patients and relatives with names absent from
 our gazetteer, writes the **same new names in Devanagari** wherever the original appeared in Devanagari
 (51 tokens, via a separate Latin→Devanagari transliterator in the test tool, not the sanitiser's), maps
 spelling variants (Harish/Hareesh) to one new name, renames headers, JSON keys and text labels, and changes
-ID and phone formats. Limitations: names are drawn from one small pool; Hinglish word order, file layouts
+ID and phone formats, and decodes, rewrites and re-encodes base64 payloads (FHIR attachments, scanned forms)
+so the base64 channel is genuinely tested. Limitations: names are drawn from one small pool; Hinglish word order, file layouts
 and date formats are not changed; the hidden data may vary things this variant does not.
 
 **Re-identification risk** (local `tools/attack.py`, an approximation of A1–A7 in `ATTACKS.md`; A2–A5 are
@@ -177,15 +196,18 @@ is off (`rare_k: 0`). Coarser 20-year bands or dropping the PIN prefix lowered p
 
 ## Tests and tools (development only)
 ```bash
+python3 tests/run_all.py            # runs all suites below
 python3 tests/test_detect.py        # 59 adversarial detector cases (remove / keep)
 python3 tests/test_fields.py        # 89 unseen header variants
 python3 tests/test_shapes.py        # end-to-end: unusual file shapes, XML/CDA, DTD refusal
 python3 tests/test_fhir_ids.py      # identifier-like FHIR ids/references: removed, keyed, still resolving
+python3 tests/test_fhir_valid.py    # local FHIR validator: 10 positive controls + practice output (needs kit)
 python3 tests/test_secret.py        # missing/empty RAKSHA_SECRET fails closed; secret never written
-python3 tests/test_attack_checks.py # positive controls for local A1/A6/A7 (needs kit/dev)
-python3 tools/score.py  --dev kit/dev --output out
-python3 tools/attack.py --dev kit/dev --output out --output2 out_other_secret
-python3 tools/chaos.py  --dev kit/dev --out chaos
+python3 tests/test_attack_checks.py # positive controls for local A1/A6/A7 (needs kit)
+python3 tools/score.py      --dev kit/dev --output out
+python3 tools/attack.py     --dev kit/dev --output out --output2 out_other_secret
+python3 tools/fhir_check.py --input kit/dev/input --output out
+python3 tools/chaos.py      --dev kit/dev --out chaos
 ```
 
 ## Models
