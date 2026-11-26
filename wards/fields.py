@@ -28,11 +28,20 @@ def _vnorm(s: str) -> str:
     return s.replace("aa", "a").replace("ee", "i").replace("oo", "u")
 
 
+_ABBREV = {"nm": "name", "nme": "name", "pt": "patient", "pts": "patient", "hosp": "hospital", "regn": "registration",
+           "reg": "registration", "addr": "address", "mob": "mobile", "ph": "phone", "tel": "phone",
+           "rel": "relative", "dob": "dob", "yr": "years", "yrs": "years", "num": "number", "nbr": "number",
+           "dt": "date", "pin": "pin", "vill": "village", "dist": "district", "distt": "district", "fn": "first",
+           "ln": "last", "mrd": "mrd", "ip": "ip", "op": "op"}
+
+
 def words_of(label: str) -> str:
     s = to_latin(label or "")
     s = re.sub(r"([a-z])([A-Z])", r"\1 \2", s)
     s = s.lower()
     s = re.sub(r"[^a-z0-9]+", " ", s)
+    # expand record-keeping abbreviations so "pt_nm", "hosp_no", "regn_dt" read like their full forms
+    s = " ".join(_ABBREV.get(w, w) for w in s.split())
     return _vnorm(" " + s.strip() + " ")
 
 
@@ -56,7 +65,7 @@ _RULES = [
     (r" (mobile|mob|phone|ph|tel|telephone|contact no|contact number|cell|whatsapp|whats app|callback|call back|mobaail|phon) ", PHONE),
     (r" (relation|relationship|rishta|sambandh) $", RELATION),
     (r" (pita|pati|father|husband|guardian|relative|attendant|next of kin|kin|nok|mother|spouse|care of|c o|s o|d o|w o|parent|abhibhavak|parijan|emergency contact) ", REL_NAME),
-    (r" (mrd sankhya|mrd no|panjiyan sankhya|panjiyan|panjikaran|registration sankhya|uhid|mrn|mr number|mr num|medical record|registration number|reg number|regn no|regn|ip op no|ip op|op no|cr no|crno|patient id|patientid|pt id|reg no|registration no|reg id|regno|hospital uhid|patient ref|patient uhid|hospital id|hospital no|ipd patient|panjikaran sankhya|record no|mr no|file no|opd no|patient number) ", UHID),
+    (r" (hospital no|hospital number|mrd sankhya|mrd no|panjiyan sankhya|panjiyan|panjikaran|registration sankhya|uhid|mrn|mr number|mr num|medical record|registration number|reg number|regn no|regn|ip op no|ip op|op no|cr no|crno|patient id|patientid|pt id|reg no|registration no|reg id|regno|hospital uhid|patient ref|patient uhid|hospital id|hospital no|ipd patient|panjikaran sankhya|record no|mr no|file no|opd no|patient number) ", UHID),
     (r" (ipd|ip no|admission no|adm no|admission id|encounter|inpatient no|bht) ", ENC),
     (r" (first|given|fname|first name|given name|pratham) ", FIRST),
     (r" (last|family|surname|lname|last name|family name|upnaam) ", LAST),

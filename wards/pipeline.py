@@ -1563,7 +1563,7 @@ def _walk(data):
 
 
 _PERSON_SEMS = {F.NAME, F.FIRST, F.UHID, F.PHONE, F.AADHAAR, F.ABHA, F.REL_NAME, F.DOB, F.OTHER_PERSON}
-_ID_SHAPE = re.compile(r"(?<![a-z0-9])(?:[a-z]{2,6}[\-/]?\d{2,4}[\-/]\d{3,8}|[a-z]{2,6}\d{5,8}|[a-z]{2,6}[\-/]\d{4,8})(?![a-z0-9])"
+_ID_SHAPE = re.compile(r"(?<![a-z0-9])(?:[a-z]{2,6}[\-/.:]?\d{2,4}[\-/.:]\d{3,8}|[a-z]{1,6}\d{5,8}|[a-z]{1,6}[\-/]\d{5,8})(?![a-z0-9])"
                        r"|(?<!\d)[6-9]\d{9}(?!\d)")
 
 

@@ -6,7 +6,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from wards.fields import classify_header as c  # noqa: E402
 
 EXPECT = {
-    "name": ["Name of Patient", "Pt Name", "PATIENT_NAME", "Patient Full Name", "Beneficiary Name", "Rogi ka Naam",
+    "name": ["pt_nm", "pt name", "Name of Patient", "Pt Name", "PATIENT_NAME", "Patient Full Name", "Beneficiary Name", "Rogi ka Naam",
              "मरीज़ का नाम", "रोगी का नाम", "Name", "pt_full_name", "Insured Name", "Client Name", "Patient"],
     "rel_name": ["Father/Husband Name", "Guardian Name", "Next of Kin", "Attendant Name", "Relative's Name",
                  "पिता/पति का नाम", "Spouse Name", "Mother Name", "NOK", "Care Of", "Emergency Contact Name"],
@@ -14,7 +14,7 @@ EXPECT = {
               "Emergency Contact No", "Ph. No.", "Telephone"],
     "aadhaar": ["UID Number", "Aadhar No.", "Aadhaar Card", "आधार", "आधार संख्या", "UIDAI No"],
     "abha": ["Health ID", "ABHA Number", "ABHA ID"],
-    "uhid": ["MR Number", "MRN", "CR No", "Hospital No", "Reg. No.", "Registration Number", "Patient ID", "IP/OP No",
+    "uhid": ["hosp_no", "Hosp. No.", "MR Number", "MRN", "CR No", "Hospital No", "Reg. No.", "Registration Number", "Patient ID", "IP/OP No",
              "UHID No", "पंजीकरण संख्या", "Medical Record No"],
     "dob": ["Date of Birth", "D.O.B.", "Birth Date", "जन्म तिथि", "DOB (DD/MM/YYYY)"],
     "age": ["Age (Yrs)", "Umar", "आयु", "उम्र", "Age in years"],
@@ -22,6 +22,7 @@ EXPECT = {
     "pin": ["Postal Code", "Pincode", "PIN Code", "पिन कोड", "Zip"],
     "address": ["Residential Address", "Permanent Address", "पता", "Address Line 1", "Street"],
     "email": ["E-mail", "Email ID", "Mail"],
+    "text": ["ref_range", "sample_id", "bill_no", "loinc"],
     "doctor": ["Referring Dr", "Consultant", "Treating Doctor", "Ref. By", "Doctor Name"],
 }
 
