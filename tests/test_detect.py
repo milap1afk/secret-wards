@@ -249,6 +249,12 @@ CASES = [
  ("Patient Name : SUNIL KUMAR S", ["SUNIL KUMAR"], []),
  ("VID: 9182 7364 5546 1029", ["9182 7364 5546 1029"], []),
  ("mail: ramesh.k[at]gmail[dot]com", ["ramesh.k[at]gmail[dot]com"], []),
+ # round 10: date ranges are not vehicle numbers, birth years are DOBs, infant ages in days/months stay
+ ("Born 1931. Widow.", ["1931"], []),
+ ("Patient born in 1940 at Kanpur", ["1940"], []),
+ ("Neonate aged 9 days, wt 2.6 kg", [], ["aged 9 days"]),
+ ("Age 7 months, febrile", [], ["Age 7 months"]),
+ ("Car MH 12 DE 1433 parked", ["MH 12 DE 1433"], []),
  ("Patient: Sohan Lal, DOB 02/05/2014, mob 9450011100", ["Sohan Lal", "02/05/2014"], ["DOB"]),
  ("Name: Kamini Arora, Age 33, Sex F", ["Kamini Arora"], ["Age 33"]),
  # round 8: name labels in other Indian scripts; localities named by suffix inside an address

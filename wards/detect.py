@@ -131,8 +131,11 @@ RE_PHONE = re.compile(
 )
 # other Indian identifiers (shapes, not labels, so they are found in any context)
 RE_UPI = re.compile(r"(?<![a-z0-9._%+\-])[a-z0-9][a-z0-9._\-]{1,63}@[a-z]{2,32}(?![a-z0-9.@])")
-RE_DL = re.compile(r"(?<![a-z0-9])[a-z]{2}[ \-]?\d{2}[ \-]?(?:19|20)\d{2}[ \-]?\d{7}(?![a-z0-9])")
-RE_VEHICLE = re.compile(r"(?<![a-z0-9])[a-z]{2}[ \-]?\d{1,2}[ \-]?[a-z]{1,3}[ \-]?\d{4}(?![a-z0-9])")
+# vehicle and driving-licence numbers start with a state/UT RTO code ("to 02-Jan-2026" is a date range, not a car)
+_RTO = r"(?:an|ap|ar|as|br|bh|cg|ch|dd|dl|dn|ga|gj|hp|hr|jh|jk|ka|kl|la|ld|mh|ml|mn|mp|mz|nl|od|or|pb|py|rj|sk|tn|tr|ts|uk|ua|up|wb)"
+RE_DL = re.compile(r"(?<![a-z0-9])" + _RTO + r"[ \-]?\d{2}[ \-]?(?:19|20)\d{2}[ \-]?\d{7}(?![a-z0-9])")
+RE_VEHICLE = re.compile(r"(?<![a-z0-9])" + _RTO + r"[ \-]?\d{1,2}[ \-]?(?!(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[ \-]?(?:19|20)\d\d)"
+                        r"[a-z]{1,3}[ \-]?\d{4}(?![a-z0-9])")
 RE_PASSPORT = re.compile(r"(?<![a-z0-9])[a-z][1-9]\d{6}(?![a-z0-9])")
 RE_EPIC = re.compile(r"(?<![a-z0-9])[a-z]{3}\d{7}(?![a-z0-9])")
 RE_IFSC = re.compile(r"(?<![a-z0-9])[a-z]{4}0[a-z0-9]{6}(?![a-z0-9])")
@@ -175,7 +178,7 @@ REL_LABEL_WORDS = re.compile(r"(?i)attendant|relative|guardian|informant|caller|
 PHONE_LABELS = re.compile(r"(?i)\b(mob(?:ile)?|ph(?:one)?|tel|contact|cell|whats\s*app|call\s*back|callback|मोबाइल|फ़ोन|फोन)\b\.?\s*(?:no\.?|number)?\s*[:\-–=]?\s*")
 ADDR_LABELS = re.compile(r"(?i)(?<![a-z])(address|addr|add|residence|r/o|resident\s+of|पता|निवास)\s*[:\-–.]\s*")
 VILLAGE_MARKERS = re.compile(r"(?i)(?<![a-z])(vill(?:age)?\.?|gram|gaon|ग्राम|गांव|गाँव|मौजा|mauza)\s*[:\-–.]?\s*")
-DOB_LABELS = re.compile(r"(?i)(?<![a-z])(dob|d\.\s*o\.\s*b\.?|date\s*of\s*birth|birth\s*date|born\s*on|janm\s*tithi|जन्म\s*(?:तिथि|दिनांक|तारीख)?)(?:\s*[/&]\s*age)?\s*[:\-–=]?\s*")
+DOB_LABELS = re.compile(r"(?i)(?<![a-z])(dob|d\.\s*o\.\s*b\.?|date\s*of\s*birth|birth\s*date|born(?:\s+(?:on|in))?(?=\s*[:\-–=]?\s*(?:\d|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)))|janm\s*tithi|जन्म\s*(?:तिथि|दिनांक|तारीख)?)(?:\s*[/&]\s*age)?\s*[:\-–=]?\s*")
 
 RELATION_RE = re.compile(
     r"(?<![A-Za-z])(S\s*/\s*[Oo]|D\s*/\s*[Oo]|W\s*/\s*[Oo]|C\s*/\s*[Oo]|H\s*/\s*[Oo]|F\s*/\s*[Oo]|M\s*/\s*[Oo]|B\s*/\s*[Oo]|Son\s+of|Daughter\s+of|Wife\s+of|Husband\s+of|Father\s+of|Mother\s+of|"
@@ -285,6 +288,7 @@ RE_AGE = re.compile(
     r"|(?<![\d\-/.:])(\d{1,3})\s*/\s*(?=[mf]\b|male\b|female\b)"
     r"|(?<![\d])(\d{1,3})\s*(?=वर्ष|साल)"
     r"|(?i:\b(?:age|aged)\b\s*[:\-]?\s*(?:about|approx\.?|approximately|around|nearly|~)?\s*)(\d{1,3})(?![\d/.\-])"
+    r"(?!\s*(?i:days?|d\b|weeks?|wks?|w\b|months?|mths?|mo\b|hours?|hrs?\b))"   # an infant's age in days stays as written
     r"|(?:आयु|उम्र)\s*[:\-]?\s*(\d{1,3})"
     r"|(?i:\b(?:umr|umar|aayu|ayu)\b\s*[:\-]?\s*)(\d{1,3})(?!\d)"
     r"|(?<![\d\-/.])(\d{1,3})(?=[\s\-]*(?i:years?|yrs?)[\s\-]+(?i:old)\b)"
@@ -567,7 +571,7 @@ class Detector:
             if dm:
                 spans.append(Span(dm[0], dm[1], "DOB", value=dm[2], meta=dm[3]))
                 continue
-            ym = re.compile(r"(?:19|20)\d\d(?![\d/.\-])").match(f, m.end())   # year-only DOB: "D.O.B. 1968"
+            ym = re.compile(r"(?:19|20)\d\d(?![\d/\-]|\.\d)").match(f, m.end())   # year-only DOB: "D.O.B. 1968"
             if ym:
                 spans.append(Span(ym.start(), ym.end(), "DOB", value=ym.group(0), meta={"fmt": "year"}))
         for m in VILLAGE_MARKERS.finditer(t):
