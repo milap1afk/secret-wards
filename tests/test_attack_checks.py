@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Positive controls for the LOCAL attack approximations A1, A6, A7 (tools/attack.py):
 each check must fire on a deliberately broken release, and stay at 0 on ours.
-Needs the practice kit at kit/dev. Run: python3 tests/test_attack_checks.py"""
+Needs the practice kit (kit/dev, or SECRET_WARDS_KIT). Exit 2 = NOT VERIFIED when it is missing.
+Run: python3 tests/test_attack_checks.py"""
 import hashlib
 import json
 import os
@@ -16,7 +17,7 @@ sys.path.insert(0, str(ROOT / "tools"))
 sys.path.insert(0, str(ROOT))
 import attack  # noqa: E402
 
-DEV = ROOT / "kit" / "dev"
+DEV = Path(os.environ.get("SECRET_WARDS_KIT", ROOT / "kit")) / "dev"
 
 
 def run(secret, out):
@@ -26,8 +27,8 @@ def run(secret, out):
 
 def main():
     if not DEV.exists():
-        print("SKIP: practice kit not found at kit/dev")
-        return 0
+        print("NOT VERIFIED: practice kit not found (run tools/get_kit.py or set SECRET_WARDS_KIT)")
+        return 2
     truth = json.loads((DEV / "truth" / "truth.json").read_text())
     attack.dev_root = DEV
     fails = []

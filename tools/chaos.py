@@ -4,12 +4,17 @@
   python3 tools/chaos.py --dev kit/dev --out chaos
 
 Changes applied consistently to the input files AND truth.json:
-  * every Latin patient/relative name token -> a name that is NOT in our gazetteer
-  * CSV headers / JSON keys / text labels renamed to unseen synonyms
-  * hospital ID prefixes and phone formats changed (digit cores unchanged, as in the scorer)
-Devanagari text and base64 payloads are left as they are.
+  * every Latin patient/relative name token -> a name that is NOT in our gazetteer (spelling variants of one
+    name map to the same new name);
+  * the Devanagari forms of those names -> the NEW name written in Devanagari (test-only transliterator);
+  * base64 payloads (FHIR attachments, scanned forms) are decoded, rewritten the same way and re-encoded,
+    because the scorer decodes them too;
+  * CSV headers / JSON keys / text labels renamed to unseen synonyms;
+  * hospital ID prefixes and phone formats changed (digit cores unchanged, as in the scorer).
+The sanitiser never reads this tool or the answer key.
 """
 import argparse
+import base64
 import hashlib
 import json
 import random
@@ -91,6 +96,9 @@ def latin_to_deva(word):
             else:
                 i += 1
     return "".join(out)
+
+
+B64_FIELD = re.compile(r'("data"\s*:\s*")([A-Za-z0-9+/=]{16,})"')
 
 
 def case_like(src, new):
@@ -176,12 +184,24 @@ def main():
                 hdr = re.sub(r"(?<![\w ])" + re.escape(k) + r"(?![\w])", v, hdr)
             text = hdr + ("\n" + lines[1] if len(lines) > 1 else "")
         elif fmt in ("json", "fhir"):
+            text = B64_FIELD.sub(lambda m: m.group(1) + rewrite_b64(m.group(2)) + '"', text)
             for k, v in JSON_KEY_MAP.items():
                 text = text.replace(f'"{k}":', f'"{v}":')
         else:
             for k, v in LABEL_MAP:
                 text = text.replace(k, v)
         return text
+
+    def rewrite_b64(payload):
+        try:
+            dec = base64.b64decode(payload, validate=True).decode("utf-8")
+        except Exception:
+            return payload
+        new = sub_names(dec)
+        for pat, rep in ID_MAP:
+            new = re.sub(pat, rep, new)
+        new = re.sub(r"\+91 (\d{5}) (\d{5})", r"(+91) \1-\2", new)
+        return base64.b64encode(new.encode("utf-8")).decode("ascii")
 
     def tsurf(s):
         s2 = sub_names(s)
