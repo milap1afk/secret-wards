@@ -1,4 +1,5 @@
 [submission]
 name  = "artificially-intelligent"
-setup = "pip install -r requirements.txt"
-run   = "python main.py --input {input} --output {output}"
+# The only dependency (cryptography) is optional: it encrypts quarantined files; without it nothing is stored.
+setup = "python3 -m pip install -r requirements.txt || true"
+run   = "python3 main.py --input {input} --output {output}"
