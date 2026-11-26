@@ -14,9 +14,9 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-NAMES = ["Rudransh Gaharwar", "Bhagirath Tomar", "Chandrakala Sengar", "Trilok Bundela", "Yamini Chandel", "Mangru Ram",
+NAMES = ["Kanhaiyalal Ojha", "Hiralal Rajak", "Vaidehi Mallah", "Rudransh Gaharwar", "Bhagirath Tomar", "Chandrakala Sengar", "Trilok Bundela", "Yamini Chandel", "Mangru Ram",
          "Omveer Jadon", "Fakira Sisodia", "Gangadin Parihar", "Nankau", "Pancham"]
-PHONES = ["9800012345", "234567890123", "9876501234", "9876501299", "9812345670", "9812345671", "9811122233", "9800011122", "9800011199"]
+PHONES = ["9811100022", "9800012345", "234567890123", "9876501234", "9876501299", "9812345670", "9812345671", "9811122233", "9800011122", "9800011199"]
 
 
 def build(d: Path) -> None:
@@ -38,6 +38,9 @@ def build(d: Path) -> None:
                                  '<id root="2.16.356.aadhaar" extension="234567890123"/><telecom value="tel:+91-9800012345"/>'
                                  '<patient><name><given>Rudransh</given><family>Gaharwar</family></name></patient></patientRole>'
                                  '</recordTarget><component><text>Rudransh ji admitted with dengue</text></component></ClinicalDocument>', encoding="utf-8")
+    (d / "a/preamble.csv").write_text("Lab export - Collection Centre\nCourier booked by Kanhaiyalal Ojha, ph 9811100022\n\n"
+                                      "sample,patient_name,uhid,test,result\nS1,Hiralal Rajak,KG-000901,Hb,9.1\n"
+                                      "S2,Vaidehi Mallah,KG-000902,Hb,11.4\n", encoding="utf-8")
     (d / "b/bomb.xml").write_text('<?xml version="1.0"?><!DOCTYPE lolz [<!ENTITY lol "lol">]><a>&lol;</a>', encoding="utf-8")
 
 
@@ -65,6 +68,9 @@ def main() -> int:
             if ph in blob:
                 fails.append(f"phone leaked: {ph}")
         recs = [json.loads(l) for l in (out / "records.jsonl").read_text(encoding="utf-8").splitlines()]
+        pre = {x["loc"]: x["patient"] for x in recs if x["file"].endswith("preamble.csv")}
+        if sorted(pre) != ["row:0", "row:1"] or pre.get("row:0") == pre.get("row:1"):
+            fails.append(f"preamble CSV rows wrong: {sorted(pre)}")
         tl = [x["patient"] for x in recs if x["file"].endswith("top_level_list.json")]
         if len(tl) != 2 or tl[0] == tl[1]:
             fails.append(f"top-level list records wrong: {tl}")

@@ -110,14 +110,22 @@ def sniff_format(rel: str, text: str) -> str:
 
 
 def sniff_delimiter(rel: str, text: str) -> str:
-    first = text.split("\n", 1)[0]
-    if Path(rel).suffix.lower() == ".tsv" or first.count("\t") > first.count(","):
+    """Pick the delimiter whose per-line count is most consistent over the first non-empty lines
+    (a preamble line before the header has none, so the first line alone is not enough)."""
+    if Path(rel).suffix.lower() == ".tsv":
         return "\t"
-    if first.count(";") > first.count(",") and first.count(";") >= 2:
-        return ";"
-    if first.count("|") > first.count(",") and first.count("|") >= 2:
-        return "|"
-    return ","
+    lines = [ln for ln in text.splitlines()[:30] if ln.strip()]
+    best, best_score = ",", -1
+    for cand in (",", "\t", ";", "|"):
+        counts = [ln.count(cand) for ln in lines]
+        nonzero = [c for c in counts if c > 0]
+        if not nonzero:
+            continue
+        modal, freq = collections.Counter(nonzero).most_common(1)[0]
+        score = freq * 10 + (1 if cand == "," else 0)
+        if score > best_score:
+            best, best_score = cand, score
+    return best
 
 
 # ====================================================================== records
@@ -311,6 +319,22 @@ class Pipeline:
         rows = list(csv.reader(io.StringIO(job.text, newline=""), delimiter=job.delim))
         if not rows:
             raise Quarantine("empty_file")
+        # preamble lines (title, run info, a note) before the real header: their field count differs from
+        # the file's dominant field count. Normal and ragged CSVs keep h = 0.
+        h = 0
+        counts = [len(r) for r in rows[:200] if len(r) >= 2]
+        if counts:
+            modal = collections.Counter(counts).most_common(1)[0][0]
+            if modal >= 2 and len(rows[0]) != modal:
+                while h < min(10, len(rows) - 1) and len(rows[h]) != modal:
+                    h += 1
+                if len(rows[h]) != modal:
+                    h = 0
+        job.preamble = ""
+        if h:
+            lines = job.text.splitlines(keepends=True)
+            job.preamble = "".join(lines[:h])
+            rows = rows[h:]
         job.header, job.rows = rows[0], rows[1:]
 
     def _date_order(self, job: FileJob) -> str:
@@ -1146,6 +1170,8 @@ class Pipeline:
         buf = io.StringIO()
         w = csv.writer(buf, delimiter=job.delim, lineterminator=job.newline)
         hdr_unit = Unit(job.rel, "@header", "file", date_order=job.date_order)
+        if getattr(job, "preamble", ""):
+            buf.write(self._render_free(job.preamble, hdr_unit, set()))
         header = [self._render_free(h, hdr_unit, set()) if _has_pii_shape(h) else h for h in job.header]
         w.writerow(header)
         for u in job.units:
