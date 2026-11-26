@@ -1,0 +1,12 @@
+# Secret Wards privacy policy. Simple "key: value" lines.
+# Every value here is a deliberate privacy-vs-utility trade-off; see README.md.
+
+age_band_years: 5          # 47 -> 45-49. The band always contains the true age.
+age_top_code: 85           # 85 and older -> "85+": very old patients are few and easy to single out
+date_shift_max_days: 180   # every date of ONE patient moves by the same secret offset (intervals kept)
+date_shift_min_days: 7     # never a near-zero shift
+village_policy: tehsil     # village -> its tehsil (district if the tehsil is unknown)
+pin_policy: prefix3        # 229678 -> 229***
+dob_policy: shift          # date of birth shifted with the patient's own offset (age stays truthful)
+rare_k: 3                  # quasi-identifier groups smaller than k get coarser generalisation
+embed_pseudonym: 1         # the pseudonym is written inside every exported record
