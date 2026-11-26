@@ -9,6 +9,27 @@ from __future__ import annotations
 from .translit import name_key
 
 _GIVEN = """
+aakash aanchal abhinav adil afreen ajmal akshay alisha alpana ambika amir amrish anamika aneesh angad anjana
+ankur annu anshu anurag aparna arpita arvind asmita ashutosh avantika ayaan ayush azhar babulal bachchan
+bahadur balwinder banke basanti beena bela bhanu bharti bhawna bhupesh bina bittu chameli champa chandrika
+chanda charanjeet chhavi chhotu dalip damodar darshan dayawati deeksha deepali deshraj devki dhanraj dhanpati
+dhanno dinanath dipika dulari durgesh fahad faisal faizan fareed fehmida gajraj gauri gayatri geetanjali girja
+gomti gopi gudiya gulab gurnam guddu habib hakim hamida harinder harendra harikesh harishchandra harjit hemraj
+heena himani hukum ilyas imtiaz indira ishrat jagmohan jagpal jamuna janak jasmeet jasvir javed jeetendra
+jhunni jitesh jugal julie jyotsna kailashi kalawati kalpesh kamini kamran kanchana kanika karishma kaushalya
+kesar khushboo kiranpal kishori kokila krishnakant kuldip kunti lajja lalita lalji laxman leelawati madhav
+madhavi mahadev mahesh mahima maina malti manisha manoj manorama mansi mehnaz mithun mobin mohini mukta mulayam
+munish munni muskan nafisa nagendra naina nanhe narendra narmada naseema naushad nawal neelu nilesh nirmal
+nirmla noorjahan omkar padma pappi paramjit parmeshwar parul phoolwati pinki pinky poonam pramila prateek
+premlata premwati pushpendra raees rafiq raghvendra rahman rajbala rajkali rajkumari rajpal rakhi ramawati
+ramdas rameshwari ramlakhan ramsakhi ramvilas ranjana rashida ratan ratna raveena rekha renuka rinki riya
+rohini roop rubi sabiha sachin sadhna sagar sahdev sakshi salim samiksha sangita sanjana santoshi sarla
+sarojini satendra satyaprakash satyendra savitri seema shabeena shailendra shakeela shalu shamsher shankar
+sharmila shashikala shilpi shivani shivram shobhit shravan shubhra shyamlal siddiqa sitara sona sonali sonu
+sudesh sukhdevi sulekha sumitra sunaina sundar sunny surajbhan sureshchandra surya swaroop tasleem tejveer
+tina tufail udham ujjwal umar umed upasana urmila vaishali vandna varun vedprakash vibha vidya vijaylaxmi
+vikrant vimla vinita vishwanath yadvendra yamuna yashpal yogendra zahida zaheer zakia zareena zeba
+
 aarav aarti aarushi abdul abhay abhishek abid adarsh aditi aditya afroz afsana agnes ahmad ahmed aisha ajay ajit
 akash akbar akhilesh akram alka alok aman amar amarjeet amina amit amita amitabh amrita amrit anand anant anil
 anita anjali anju ankit ankita anuj anupam anuradha anwar aparna archana arif arjun arshad arti arun aruna
@@ -49,6 +70,16 @@ nasreen nasrin shamshad gulzar shabbir sabir sajda sakina tasleem yasmeen razia 
 """
 
 _SURNAMES = """
+agnihotri ahirwar akhtar alam anand ansari asthana awasthi azmi baghel bajpai balmiki banjara barman bhagat
+bharadwaj bhati bhatnagar bhushan bundela chak chandel chaturvedi chaudhary chishti dalal dangi deo dhiman
+dhurve dikshit dubey gaur ghosh giri goswami gujjar gupta hasan inamdar jaiswal jatav jha kapoor karn katheria
+kesari khatri kumawat kureel lodhi madhesiya mahato maheshwari majhi mandal marwari maurya mehra mishra mittal
+mourya nai naidu nath negi nigam ojha pal panday pandit parmar pasi patel pathak pawar prajapati
+rajbhar rajpoot rathaur rawat rizvi sahni saini sakya saroj sengar shaikh shekhawat shrivastava shukla
+sinha solanki sonkar suryavanshi talukdar thakur tiwary tripathi tyagi upadhyaya vaishya verma vishwakarma
+yadav zaidi qureshi farooqui siddique usmani hashmi raza naqvi kidwai abbasi chaudhri gill brar randhawa
+sekhon grewal virk sandhu dhaliwal toor masih lal dass francis david lobo pinto
+
 agarwal agrawal ahmad ahmed ali ansari arora awasthi bajpai bajwa bano begum bhardwaj bhatt bhatia bisht
 chandra chaturvedi chaubey chaudhary chaudhari chauhan chaurasia dixit dubey dwivedi gautam gill goel gupta
 hussain jaiswal jain joshi kaur khan khanna khatoon kashyap kohli kumar kumari kushwaha lal lodhi lodh

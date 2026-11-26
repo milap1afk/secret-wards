@@ -236,6 +236,8 @@ def shift_date_string(s: str, days: int, order: str, ref_year: int = 2026):
 
 # ---------------------------------------------------------------- locations
 def pin_prefix(pin: str) -> str:
+    if POLICY.get("pin_policy") == "drop":
+        return "******"
     digits = re.sub(r"\D", "", pin)
     if len(digits) >= 3:
         return digits[:3] + "***"
