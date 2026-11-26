@@ -602,6 +602,14 @@ class Pipeline:
             else:
                 return F.TEXT
         sem = F.classify_json(str(key), [a for a in anc], rt or "")
+        if str(key).startswith("value") and "extension" in anc:
+            # FHIR extension: what the value is comes from its url ("…/StructureDefinition/fathers-name")
+            url = str(_sibling(data, path, "url") or "")
+            tail = re.split(r"[/#]", url.rstrip("/"))[-1] if url else ""
+            if tail:
+                es = F.classify_json(tail, [a for a in anc], rt or "")
+                if es in _PERSON_SEMS or es in (F.VILLAGE, F.ADDRESS, F.EMAIL, F.PAN):
+                    return es
         if str(key) == "value" and "identifier" in anc:
             system = _sibling(data, path, "system") or ""
             s = system.lower()

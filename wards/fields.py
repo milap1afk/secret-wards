@@ -32,7 +32,10 @@ _ABBREV = {"nm": "name", "nme": "name", "pt": "patient", "pts": "patient", "hosp
            "reg": "registration", "addr": "address", "mob": "mobile", "ph": "phone", "tel": "phone",
            "rel": "relative", "dob": "dob", "yr": "years", "yrs": "years", "num": "number", "nbr": "number",
            "dt": "date", "pin": "pin", "vill": "village", "dist": "district", "distt": "district", "fn": "first",
-           "ln": "last", "mrd": "mrd", "ip": "ip", "op": "op"}
+           "ln": "last", "mrd": "mrd", "ip": "ip", "op": "op",
+           # possessive forms read as the relation itself ("fathers-name", "husband's name")
+           "fathers": "father", "mothers": "mother", "husbands": "husband", "wifes": "wife", "guardians": "guardian",
+           "spouses": "spouse", "sons": "son", "daughters": "daughter"}
 
 
 def words_of(label: str) -> str:
@@ -119,7 +122,9 @@ _NAMEISH_KEYS = {"name", "text", "display", "given", "family", "first", "last", 
 
 
 def _norm_key(k: str) -> str:
-    return re.sub(r"[^a-z0-9_]", "", to_latin(str(k)).lower())
+    # hyphens, dots and spaces separate words like "_" does ("emergency-contact-phone" == "emergency_contact_phone")
+    s = re.sub(r"[\s\-.]+", "_", to_latin(str(k)).lower().replace("'", "").replace("\u2019", ""))
+    return re.sub(r"[^a-z0-9_]", "", s).strip("_")
 
 
 def classify_json(key: str, ancestors: list, resource_type: str = "") -> str:

@@ -77,6 +77,11 @@ LAT_TOKEN = r"[A-Za-z][A-Za-z'’]*\.?"
 DEV_TOKEN = r"[\u0900-\u0963\u0970-\u097F]+"
 TOKEN_RE = re.compile(r"[A-Za-z\u00C0-\u024F][A-Za-z\u00C0-\u024F'’]*(?:-[A-Z][A-Za-z\u00C0-\u024F'’]*)*\.?|[\u0900-\u0963\u0970-\u097F]+")
 
+# words that sit before a phone number without being a name: contact labels and document words
+DEVA_CONTACT_WORDS = set("""
+संपर्क नंबर नम्बर नं मो मो. मोबाइल फोन फ़ोन दूरभाष हेल्पलाइन कॉल करें पर व्हाट्सएप वॉट्सऐप एम्बुलेंस शिकायत आपातकालीन
+टोल फ्री सूचना रिपोर्ट पर्ची पर्चा जांच जाँच बिल रसीद सारांश डिस्चार्ज फाइल फ़ाइल
+""".split())
 HINDI_STOP = set("""
 को है हैं से में की का के ने दिन बुखार नाम आयु वर्ष ग्राम तारीख पर्चा ओपीडी और मरीज़ मरीज पता मकान नं तहसील जिला
 पिन मोबाइल महिला पुरुष पास पीछे सामने मंदिर मस्जिद गुरुद्वारे गुरुद्वारा भवन पंचायत स्कूल टंकी पानी बाज़ार बाजार
@@ -189,6 +194,11 @@ ROLE_WORD = re.compile(PATIENT_ROLE_WORD.pattern + "|" + REL_ROLE_WORD.pattern +
 CLINICAL_LABEL = re.compile(r"(?<![a-z])(diagnosis|advice|adv|rx|complaint|complaints|c/o|history|h/o|k/c/o|ward|bed|consultant|doctor|dr|surgeon|department|dept|test|result|investigation|impression|plan|procedure|medication|medicine|drug|dose|frequency|vitals|bp|pulse|temp|spo2|weight|height|bmi|remarks?|notes?|course|treatment|status|hospital|unit|specimen|sample|lab|room|date|time|age|sex|gender|address|village|district|tehsil|state|pin|mobile|phone|email|uhid|mrn|id|no|number)(?![a-z])")
 ROLE_NOUN = re.compile(r"(?<![A-Za-z])(?i:patient|pt\.?|mareez|mariz|rogi|beneficiary|visitor|neighbou?r|caretaker|attendant|escort|bystander)\s+(?=[A-Z\u0900-\u097F])"
                        r"|(?:मरीज़|मरीज|रोगी|पड़ोसी|पड़ोसन|परिजन|रिश्तेदार|परिचारक|मित्र|सहेली|दोस्त)\s+(?=[\u0900-\u097F])")
+# "(Tsering Dolma, 41F)", "(Ramesh, 58 M)": a name sharing brackets with age and sex
+NAME_AGE_BRACKET = re.compile(r"\(\s*((?:[A-Z][a-z'\-]+\.?\s+){0,3}[A-Z][a-z'\-]+)\s*,\s*\d{1,3}\s*(?:y|yrs?|years?)?\s*/?\s*[MF]\b")
+# "spouse (Meenakshi)", "son (Rakesh Kumar)": a relation word with the name in brackets
+REL_BRACKET_NAME = re.compile(r"(?i:\b(?:spouse|wife|husband|son|daughter|father|mother|brother|sister|guardian|nephew|niece|uncle|aunt|"
+                              r"son-in-law|daughter-in-law|bhai|behen|beta|beti|pati|patni))\s*\(\s*((?:[A-Z][a-z'\-]+\s+){0,2}[A-Z][a-z'\-]+)\s*\)")
 AGE_SEX_BRACKET = re.compile(r"\(\s*(?:[MF]\s*/\s*\d{1,3}|\d{1,3}\s*(?:Y|Yrs?|years?)?\s*/\s*[MF])\s*\)")
 SUBJ_VERB = re.compile(r"(?:^|(?<=[.;!\n]\s)|(?<=^\s))([A-Z][a-z]{2,})\s+(?:called|phoned|rang|came|visited|paid|signed|informed|counselled|enquired|requested|refused|consented|agreed|left|brought)\b", re.M)
 OBJ_VERB = re.compile(r"(?i:\b(?:told|informed|called|phoned|counselled|counseled|asked|briefed|advised|explained\s+to))\s+(?=[A-Z])")
@@ -571,6 +581,11 @@ class Detector:
                     st = m.start() - len(left) + mm.start(1) + off
                     spans.append(Span(st, m.start() - len(left) + mm.end(1), "NAME", role="patient",
                                       value=" ".join(words), meta={"src": "age-bracket"}))
+        for rx, role in ((NAME_AGE_BRACKET, "patient"), (REL_BRACKET_NAME, "relative")):
+            for m in rx.finditer(t):
+                words = m.group(1).split()
+                if all(is_name_token(w.rstrip(".")) for w in words) and not re.match(r"(?i)dr\b", words[0]):
+                    spans.append(Span(m.start(1), m.end(1), "NAME", role=role, value=m.group(1), meta={"src": "age-bracket"}))
         # Hinglish: "Rogi ka naam Bhagwandas hai", "uska naam Ramesh hai", "naam: ..." handled above
         for m in re.finditer(r"(?i)\b(?:ka|ki|ke|uska|uski|unka|iska|mera|mero)\s+naam\s+(?:hai\s+)?|का\s+नाम\s+(?:है\s+)?", t):
             s0, e0, toks = _name_run(t, m.end(), allow_lower=False, max_tokens=3)
@@ -712,6 +727,12 @@ class Detector:
             if words:
                 st = m.start(1) + m.group(1).find(words[0])
                 spans.append(Span(st, m.end(1), "NAME", role="other", value=" ".join(words), meta={"src": "deva-phone"}))
+        # "<नाम> 98765 43210" with no label in between (file names, contact lists): the Latin phone-adj rule's twin
+        for m in re.finditer(r"((?:[ऀ-ॣ॰-ॿ]+\s+)?[ऀ-ॣ॰-ॿ]+)\s*[,:\-]?\s*(?=(?:\+91[\s\-]?)?[6-9]\d{4}\s?\d{5}(?!\d))", fold(t)):
+            words = [w for w in m.group(1).split() if w not in HINDI_STOP and w not in DEVA_CONTACT_WORDS]
+            if words and m.group(1).split()[-1] == words[-1]:
+                st = m.start(1) + m.group(1).find(words[0])
+                spans.append(Span(st, m.end(1), "NAME", role="other", value=" ".join(words), meta={"src": "deva-phone"}))
         # "<Name> (attendant, bed 12)"
         for m in re.finditer(r"\(\s*(?:attendant|relative|husband|wife|son|daughter|father|mother|guardian|visitor|caller|neighbou?r|friend|colleague|caretaker|employer|landlord|brother|sister|uncle|aunt|cousin|nephew|niece|grand(?:son|daughter|father|mother)|in-law)", t, flags=re.I):
             left = t[max(0, m.start() - 80):m.start()].rstrip()
@@ -747,7 +768,7 @@ class Detector:
             spans.append(Span(m.start(), m.end(), "HOUSE", value=m.group(0)))
         for m in LOCALITY_RE.finditer(t):
             s = m.group(0)
-            if re.match(r"(?i)ward", s):
+            if re.match(r"(?i)ward|वार्ड", s):           # a ward number is clinical unless the text is an address
                 tail = t[m.end():m.end() + 6]
                 if not addr_ctx or re.match(r"\s*[\(/]", tail):
                     continue

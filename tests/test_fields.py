@@ -47,6 +47,12 @@ def main():
         if classify_json(key, ["_export_meta"]) != OTHER_PERSON_IF_NAMED:
             print(f"{key}: not treated as a possible person")
             return 1
+    # hyphen / space / possessive spellings of a key mean the same as the underscore form
+    for a, b in (("emergency-contact-phone", "emergency_contact_phone"), ("mothers-name", "mother_name"),
+                 ("Husband's Name", "husband_name"), ("guardian.name", "guardian_name")):
+        if classify_json(a, []) != classify_json(b, []):
+            print(f"{a!r} -> {classify_json(a, [])} but {b!r} -> {classify_json(b, [])}")
+            return 1
     fails = 0
     n = 0
     for vals, key, anc, want in VALUE_CASES:
