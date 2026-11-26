@@ -43,6 +43,9 @@ MAX_JSON_DEPTH = 200
 TEHSIL_TEXT = re.compile(r"(Tehsil|Tahsil|Teh\.|तहसील)\s+(?!\[)(?:[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?|[\u0900-\u097F]+)")
 
 
+DROP_KEY = object()   # sentinel: remove this JSON key from the output (only for optional elements)
+
+
 class Quarantine(Exception):
     pass
 
@@ -810,6 +813,9 @@ class Pipeline:
         k = s.kind
         if k == "PROTECT":
             return None
+        if k == "DOB" and POLICY.get("dob_policy") == "suppress":
+            self.n_generalized += 1
+            return "[DOB]"
         if k in ("DATE", "DOB"):
             r = shift_date_string(seg, u.shift, u.date_order)
             if r is None:
@@ -972,6 +978,9 @@ class Pipeline:
             return "[EMAIL]"
         if sem == F.DOB:
             self.n_generalized += 1
+            if POLICY.get("dob_policy") == "suppress":
+                # a birth year pins age to +-1 year and defeats the age band; the band carries the age instead
+                return DROP_KEY if lf.extra.get("json") and lf.key == "birthDate" else "[DOB]"
             if POLICY.get("dob_policy") == "year":
                 r = parse_any_date(s, u.date_order)
                 return str(r[0].year) if r else "[DOB]"
@@ -1156,7 +1165,10 @@ class Pipeline:
                         while nk in out:
                             nk = f"{base}_{i}"
                             i += 1
-                    out[nk] = rebuild(v, path + (k,))
+                    nv = rebuild(v, path + (k,))
+                    if nv is DROP_KEY:          # optional FHIR element suppressed by policy (e.g. birthDate)
+                        continue
+                    out[nk] = nv
                 return out
             if isinstance(node, list):
                 return [rebuild(x, path + (i,)) for i, x in enumerate(node)]

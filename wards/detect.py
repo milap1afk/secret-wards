@@ -413,6 +413,10 @@ class Detector:
             dm = _match_date_at(t, f, m.end())
             if dm:
                 spans.append(Span(dm[0], dm[1], "DOB", value=dm[2], meta=dm[3]))
+                continue
+            ym = re.compile(r"(?:19|20)\d\d(?![\d/.\-])").match(f, m.end())   # year-only DOB: "D.O.B. 1968"
+            if ym:
+                spans.append(Span(ym.start(), ym.end(), "DOB", value=ym.group(0), meta={"fmt": "year"}))
         for m in VILLAGE_MARKERS.finditer(t):
             s, e, toks = _name_run(t, m.end(), max_tokens=3)
             if toks:

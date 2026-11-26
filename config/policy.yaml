@@ -7,6 +7,6 @@ date_shift_max_days: 180   # every date of ONE patient moves by the same secret 
 date_shift_min_days: 7     # never a near-zero shift
 location_level: district   # village and tehsil -> district (district is kept: research needs it)
 pin_policy: prefix3        # 229678 -> 229***
-dob_policy: year           # date of birth -> birth year only
+dob_policy: suppress       # birth year pins age to +-1y and defeats the band (measured: risk 0.341 -> 0.194)
 rare_k: 0                  # 0 = off. Measured: ICD-chapter generalisation of rare codes cost 1.4% of probes for no attack gain
 embed_pseudonym: 1         # the pseudonym is written inside every exported record
