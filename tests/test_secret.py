@@ -15,13 +15,13 @@ def main():
     with tempfile.TemporaryDirectory() as td:
         inp = Path(td) / "in"
         inp.mkdir()
-        (inp / "note.txt").write_text("Patient Name: Ramesh Yadav  Mob: 9876501234\n")
+        (inp / "note.txt").write_text("Patient Name: Ramesh Yadav  Mob: 9876501234\n", encoding="utf-8")
         for label, env in (("missing", {k: v for k, v in os.environ.items() if k != "RAKSHA_SECRET"}),
                            ("empty", dict(os.environ, RAKSHA_SECRET="")),
                            ("blank", dict(os.environ, RAKSHA_SECRET="   "))):
             out = Path(td) / ("out_" + label)
             r = subprocess.run([sys.executable, str(ROOT / "main.py"), "--input", str(inp), "--output", str(out)],
-                               env=env, capture_output=True, text=True)
+                               env=env, capture_output=True, text=True, encoding="utf-8", errors="replace")
             if r.returncode == 0:
                 fails.append(f"{label}: exit code 0")
             if out.exists() and any(out.rglob("*")):
@@ -33,7 +33,7 @@ def main():
         # a supplied secret still works
         out = Path(td) / "out_ok"
         r = subprocess.run([sys.executable, str(ROOT / "main.py"), "--input", str(inp), "--output", str(out)],
-                           env=dict(os.environ, RAKSHA_SECRET="s3cret-value"), capture_output=True, text=True)
+                           env=dict(os.environ, RAKSHA_SECRET="s3cret-value"), capture_output=True, text=True, encoding="utf-8", errors="replace")
         if r.returncode != 0 or not (out / "report.json").exists():
             fails.append("with a secret: run failed")
         else:

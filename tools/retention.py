@@ -4,8 +4,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent)); sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from score import load_unit_text, norm
 dev, out = Path(sys.argv[1] if len(sys.argv) > 1 else 'kit/dev'), Path(sys.argv[2] if len(sys.argv) > 2 else 'o_dev')
-truth = json.loads((dev / 'truth' / 'truth.json').read_text())
-rep = json.loads((out / 'report.json').read_text())
+truth = json.loads((dev / 'truth' / 'truth.json').read_text(encoding="utf-8"))
+rep = json.loads((out / 'report.json').read_text(encoding="utf-8"))
 by_out = {f['output']: f for f in rep['files'] if f.get('output')}
 tot = kept = 0; lost = collections.Counter()
 for rel, f in truth['files'].items():

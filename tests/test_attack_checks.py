@@ -29,7 +29,7 @@ def main():
     if not DEV.exists():
         print("NOT VERIFIED: practice kit not found (run tools/get_kit.py or set SECRET_WARDS_KIT)")
         return 2
-    truth = json.loads((DEV / "truth" / "truth.json").read_text())
+    truth = json.loads((DEV / "truth" / "truth.json").read_text(encoding="utf-8"))
     attack.dev_root = DEV
     fails = []
     with tempfile.TemporaryDirectory() as td:
@@ -48,20 +48,20 @@ def main():
         shutil.copytree(o1, bad)
         ph = next(e["surface"] for f in truth["files"].values() for u in f["units"].values() for e in u["entities"]
                   if e["type"] == "PHONE" and e.get("role") == "patient")
-        (bad / "sanitized" / "leak.txt").write_text("call " + ph)
+        (bad / "sanitized" / "leak.txt").write_text("call " + ph, encoding="utf-8")
         if attack.a1_direct(truth, bad) <= 0:
             fails.append("control: A1 did not detect a surviving phone")
         # control 2: A6 must fire when pseudonyms are an unkeyed hash of the UHID
         bad2 = Path(td) / "bad2"
         shutil.copytree(o1, bad2)
         psn = attack.psn_by_patient(truth, o1)
-        lines = (bad2 / "records.jsonl").read_text().splitlines()
+        lines = (bad2 / "records.jsonl").read_text(encoding="utf-8").splitlines()
         repl = {}
         for pt, p in psn.items():
             uhid = next(iter(next(iter(truth["patients"][pt]["uhids"].values()))))
             repl[p] = "PSN-" + hashlib.sha256(uhid.encode()).hexdigest()[:10]
         (bad2 / "records.jsonl").write_text("\n".join(
-            json.dumps({**json.loads(l), "patient": repl.get(json.loads(l)["patient"], json.loads(l)["patient"])}) for l in lines) + "\n")
+            json.dumps({**json.loads(l), "patient": repl.get(json.loads(l)["patient"], json.loads(l)["patient"])}) for l in lines) + "\n", encoding="utf-8")
         if attack.a6_inversion(truth, bad2)[0] <= 0.9:
             fails.append("control: A6 did not detect sha256(UHID) pseudonyms")
         # control 3: A7 must fire when the second release is identical (secret ignored)

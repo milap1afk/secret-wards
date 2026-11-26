@@ -80,7 +80,7 @@ def main():
     ap.add_argument("--output", default="out")
     a = ap.parse_args()
     inp, out = Path(a.input), Path(a.output)
-    rep = json.loads((out / "report.json").read_text())
+    rep = json.loads((out / "report.json").read_text(encoding="utf-8"))
     import hashlib
     sha_out = {f["input_sha256"]: f["output"] for f in rep["files"] if f.get("output")}
     issues = 0

@@ -20,7 +20,7 @@ KIT = Path(os.environ.get("SECRET_WARDS_KIT", ROOT / "kit"))
 
 
 def sh(cmd, **kw):
-    r = subprocess.run(cmd, capture_output=True, text=True, **kw)
+    r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", **kw)
     return r.returncode, (r.stdout + r.stderr).strip()
 
 

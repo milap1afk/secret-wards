@@ -137,7 +137,7 @@ def attack(ev, reg):
 
 
 def run(dev, root, use_output, truth, reg, vocab):
-    rep = json.loads((root / "report.json").read_text()) if use_output else None
+    rep = json.loads((root / "report.json").read_text(encoding="utf-8")) if use_output else None
     by_sha = {f["input_sha256"]: f for f in rep["files"]} if rep else {}
     records = []   # (true rid, ev)
     for rel, f in truth["files"].items():
@@ -176,7 +176,7 @@ def run(dev, root, use_output, truth, reg, vocab):
             reid[rid] = max(reid.get(rid, 0.0), p)
     a4 = sum(1 for p in reid.values() if p >= 0.5) / max(len(reid), 1)
     # A5: known facts
-    facts = [json.loads(l) for l in open(dev / "attacker" / "known_facts.jsonl")]
+    facts = [json.loads(l) for l in open(dev / "attacker" / "known_facts.jsonl", encoding="utf-8")]
     regby = {r["rid"]: r for r in reg}
     prof = {}
     for key, idx in groups.items():
@@ -232,7 +232,7 @@ def release_blob(root):
 
 
 def psn_by_patient(truth, root):
-    rep = json.loads((root / "report.json").read_text())
+    rep = json.loads((root / "report.json").read_text(encoding="utf-8"))
     out2in = {}
     file_map = collections.defaultdict(list)
     for rel, f in truth["files"].items():
@@ -243,7 +243,7 @@ def psn_by_patient(truth, root):
             same = [x for x in c if "sanitized/" + x == e["output"]]
             out2in[e["output"]] = same[0] if same else (c[0] if c else None)
     got = collections.defaultdict(collections.Counter)
-    for line in (root / "records.jsonl").read_text().splitlines():
+    for line in (root / "records.jsonl").read_text(encoding="utf-8").splitlines():
         r = json.loads(line)
         rel = out2in.get(r["file"])
         if not rel or not r["patient"]:
@@ -335,8 +335,8 @@ def a7_cross(truth, root, root2):
     p1, p2 = psn_by_patient(truth, root), psn_by_patient(truth, root2)
     common = [pt for pt in p1 if pt in p2]
     same_psn = sum(1 for pt in common if p1[pt] == p2[pt]) / max(len(common), 1)
-    rep1 = json.loads((root / "report.json").read_text())
-    rep2 = json.loads((root2 / "report.json").read_text())
+    rep1 = json.loads((root / "report.json").read_text(encoding="utf-8"))
+    rep2 = json.loads((root2 / "report.json").read_text(encoding="utf-8"))
     o1 = {e["input_sha256"]: e["output"] for e in rep1["files"] if e.get("output")}
     o2 = {e["input_sha256"]: e["output"] for e in rep2["files"] if e.get("output")}
     date_rx = re.compile(r"\d{4}-\d\d-\d\d|\d{1,2}[/.\-]\d{1,2}[/.\-]\d{2,4}")

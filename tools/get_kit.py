@@ -22,7 +22,7 @@ def main():
         shutil.rmtree(KIT)
     subprocess.run(["git", "clone", "--quiet", URL, str(KIT)], check=True)
     subprocess.run(["git", "-C", str(KIT), "checkout", "--quiet", PINNED], check=True)
-    head = subprocess.run(["git", "-C", str(KIT), "rev-parse", "--short", "HEAD"], capture_output=True, text=True).stdout.strip()
+    head = subprocess.run(["git", "-C", str(KIT), "rev-parse", "--short", "HEAD"], capture_output=True, text=True, encoding="utf-8", errors="replace").stdout.strip()
     print(f"kit ready at {KIT} (commit {head})")
     return 0
 

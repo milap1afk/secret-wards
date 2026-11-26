@@ -24,21 +24,21 @@ def build(d: Path) -> None:
     (d / "b").mkdir()
     json.dump([{"mrn": "KGMU/2026/004512", "full_name": "Bhagirath Tomar", "mobile_no": "9876501234", "dob": "1961-03-04"},
                {"mrn": "KGMU/2026/004513", "full_name": "Chandrakala Sengar", "mobile_no": "9876501299", "dob": "1970-11-23"}],
-              open(d / "a/top_level_list.json", "w"), indent=2)
+              open(d / "a/top_level_list.json", "w", encoding="utf-8"), indent=2)
     (d / "a/semicolon.csv").write_text("Patient No;Patient Full Name;Contact;Village;Age\n"
                                        "KG-000451;Trilok Bundela;9812345670;Lakhanpur;63\n"
-                                       "KG-000452;Yamini Chandel;9812345671;Sarai Mir;29\n")
-    (d / "a/pipe.psv").write_text("id|name|phone\n1|Mangru Ram|9811122233\n")
+                                       "KG-000452;Yamini Chandel;9812345671;Sarai Mir;29\n", encoding="utf-8")
+    (d / "a/pipe.psv").write_text("id|name|phone\n1|Mangru Ram|9811122233\n", encoding="utf-8")
     json.dump({"data": {"records": {"items": [{"patient": {"name": "Omveer Jadon", "uhid": "KG-000453"},
-                                               "note": "Omveer ji ka sugar high"}]}}}, open(d / "b/deep.json", "w"))
+                                               "note": "Omveer ji ka sugar high"}]}}}, open(d / "b/deep.json", "w", encoding="utf-8"))
     (d / "b/latin1.txt").write_bytes("Patient: Fakira Sisodia, Temp 101.2°F – stable. Mob 9800011122".encode("cp1252"))
     (d / "b/utf16.txt").write_bytes("Name: Gangadin Parihar Ph 9800011199".encode("utf-16-le"))
-    (d / "b/hinglish.txt").write_text("Raat ko Nankau ki tabiyat kharab hui. Uske bete Pancham ne bataya.\n")
+    (d / "b/hinglish.txt").write_text("Raat ko Nankau ki tabiyat kharab hui. Uske bete Pancham ne bataya.\n", encoding="utf-8")
     (d / "b/cda.xml").write_text('<?xml version="1.0"?>\n<ClinicalDocument xmlns="urn:hl7-org:v3"><recordTarget><patientRole>'
                                  '<id root="2.16.356.aadhaar" extension="234567890123"/><telecom value="tel:+91-9800012345"/>'
                                  '<patient><name><given>Rudransh</given><family>Gaharwar</family></name></patient></patientRole>'
-                                 '</recordTarget><component><text>Rudransh ji admitted with dengue</text></component></ClinicalDocument>')
-    (d / "b/bomb.xml").write_text('<?xml version="1.0"?><!DOCTYPE lolz [<!ENTITY lol "lol">]><a>&lol;</a>')
+                                 '</recordTarget><component><text>Rudransh ji admitted with dengue</text></component></ClinicalDocument>', encoding="utf-8")
+    (d / "b/bomb.xml").write_text('<?xml version="1.0"?><!DOCTYPE lolz [<!ENTITY lol "lol">]><a>&lol;</a>', encoding="utf-8")
 
 
 def main() -> int:
@@ -47,16 +47,16 @@ def main() -> int:
         build(inp)
         env = dict(os.environ, RAKSHA_SECRET="shape-test")
         r = subprocess.run([sys.executable, str(ROOT / "main.py"), "--input", str(inp), "--output", str(out)],
-                           env=env, capture_output=True, text=True)
+                           env=env, capture_output=True, text=True, encoding="utf-8", errors="replace")
         fails = []
         if r.returncode != 0:
             fails.append(f"exit code {r.returncode}")
-        rep = json.loads((out / "report.json").read_text())
+        rep = json.loads((out / "report.json").read_text(encoding="utf-8"))
         q = [f for f in rep["files"] if f["status"] != "sanitized"]
         if len(q) != 1 or q[0].get("reason") != "xml_dtd_not_allowed":
             fails.append(f"expected exactly the DTD bomb quarantined, got {[x.get('reason') for x in q]}")
         blob = "".join(p.read_text(encoding="utf-8") for p in (out / "sanitized").rglob("*") if p.is_file())
-        blob += (out / "report.json").read_text() + (out / "records.jsonl").read_text() + r.stdout + r.stderr
+        blob += (out / "report.json").read_text(encoding="utf-8") + (out / "records.jsonl").read_text(encoding="utf-8") + r.stdout + r.stderr
         for n in NAMES:
             for tok in n.split():
                 if len(tok) > 3 and re.search(r"\b" + tok + r"\b", blob):
@@ -64,7 +64,7 @@ def main() -> int:
         for ph in PHONES:
             if ph in blob:
                 fails.append(f"phone leaked: {ph}")
-        recs = [json.loads(l) for l in (out / "records.jsonl").read_text().splitlines()]
+        recs = [json.loads(l) for l in (out / "records.jsonl").read_text(encoding="utf-8").splitlines()]
         tl = [x["patient"] for x in recs if x["file"].endswith("top_level_list.json")]
         if len(tl) != 2 or tl[0] == tl[1]:
             fails.append(f"top-level list records wrong: {tl}")

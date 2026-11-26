@@ -1,10 +1,10 @@
 import json,collections,sys
-t=json.load(open(sys.argv[2] if len(sys.argv)>2 else 'kit/dev/truth/truth.json'))
+t=json.load(open(sys.argv[2] if len(sys.argv)>2 else 'kit/dev/truth/truth.json', encoding="utf-8"))
 out=sys.argv[1] if len(sys.argv)>1 else 'out'
-rep=json.load(open(out+'/report.json'))
+rep=json.load(open(out+'/report.json', encoding="utf-8"))
 sha2out={f['input_sha256']:f['output'] for f in rep['files']}
 recs={}
-for l in open(out+'/records.jsonl'):
+for l in open(out+'/records.jsonl', encoding="utf-8"):
     r=json.loads(l); recs[(r['file'],r['loc'])]=r['patient']
 pt_units=collections.defaultdict(list)
 for rel,f in t['files'].items():

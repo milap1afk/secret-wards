@@ -151,7 +151,7 @@ def main():
     print(f"input bundles: {n_in}, with issues: {len(bad_in)}  (validator sanity: should be 0)")
     for sha, v in list(bad_in.items())[:3]:
         print("   ", v[:3])
-    report = json.loads((out / "report.json").read_text())
+    report = json.loads((out / "report.json").read_text(encoding="utf-8"))
     n_out = 0
     new_issues = 0
     for sha, rel, b in bundles(out, report):

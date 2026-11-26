@@ -29,7 +29,7 @@ def run_pipeline(inp: Path, out: Path, secret: str):
             "print('PEAK', u/1048576 if sys.platform=='darwin' else u/1024, file=sys.stderr);"
             "sys.exit(r.returncode)")
     r = subprocess.run([sys.executable, "-c", code, sys.executable, str(ROOT / "main.py"), "--input", str(inp),
-                        "--output", str(out)], env=dict(os.environ, RAKSHA_SECRET=secret), capture_output=True, text=True)
+                        "--output", str(out)], env=dict(os.environ, RAKSHA_SECRET=secret), capture_output=True, text=True, encoding="utf-8", errors="replace")
     m = re.search(r"PEAK ([\d.]+)", r.stderr)
     return r.returncode, time.monotonic() - t0, float(m.group(1)) if m else -1.0
 
@@ -37,10 +37,10 @@ def run_pipeline(inp: Path, out: Path, secret: str):
 def official(dev: Path, out: Path) -> dict:
     res = {}
     r = subprocess.run([sys.executable, str(KIT / "validate_output.py"), "--input", str(dev / "input"), "--output", str(out)],
-                       capture_output=True, text=True)
+                       capture_output=True, text=True, encoding="utf-8", errors="replace")
     res["contract"] = "OK" if "CONTRACT OK" in r.stdout else "PROBLEMS"
     r = subprocess.run([sys.executable, str(KIT / "check_dev.py"), "--output", str(out), "--truth",
-                        str(dev / "truth" / "truth.json")], capture_output=True, text=True)
+                        str(dev / "truth" / "truth.json")], capture_output=True, text=True, encoding="utf-8", errors="replace")
     t = r.stdout
     m = re.search(r"PERSONAL DATA: (\d+) of (\d+) pieces", t)
     res["leaked"] = f"{m.group(1)}/{m.group(2)}" if m else "?"
@@ -62,7 +62,7 @@ def attacks(dev: Path, out: Path, out2: Path) -> dict:
     if not (dev / "attacker" / "registry.csv").exists():
         return {}
     r = subprocess.run([sys.executable, str(ROOT / "tools" / "attack.py"), "--dev", str(dev), "--output", str(out),
-                        "--output2", str(out2)], capture_output=True, text=True)
+                        "--output2", str(out2)], capture_output=True, text=True, encoding="utf-8", errors="replace")
     t = r.stdout
     res = {}
     for key, pat in (("A1", r"A1 direct exposure\s+share of patients exposed ([\d.]+)"),

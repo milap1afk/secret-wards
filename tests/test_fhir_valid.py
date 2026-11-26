@@ -66,7 +66,7 @@ def main():
             subprocess.run([sys.executable, str(ROOT / "main.py"), "--input", str(kit / "dev" / "input"), "--output", str(out)],
                            env=dict(os.environ, RAKSHA_SECRET="fhir-check"), check=True, capture_output=True)
             r = subprocess.run([sys.executable, str(ROOT / "tools" / "fhir_check.py"), "--input", str(kit / "dev" / "input"),
-                                "--output", str(out)], capture_output=True, text=True)
+                                "--output", str(out)], capture_output=True, text=True, encoding="utf-8", errors="replace")
             print(r.stdout.strip())
             if r.returncode != 0:
                 fails.append("practice output has FHIR issues not present in the input")

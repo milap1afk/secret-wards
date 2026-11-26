@@ -43,8 +43,8 @@ FHIR_ID = re.compile(r"^[A-Za-z0-9\-.]{1,64}$")
 
 def run(secret, inp, out):
     r = subprocess.run([sys.executable, str(ROOT / "main.py"), "--input", str(inp), "--output", str(out)],
-                       env=dict(os.environ, RAKSHA_SECRET=secret), capture_output=True, text=True)
-    return r.returncode, json.loads((out / "sanitized" / "fhir" / "b.json").read_text())
+                       env=dict(os.environ, RAKSHA_SECRET=secret), capture_output=True, text=True, encoding="utf-8", errors="replace")
+    return r.returncode, json.loads((out / "sanitized" / "fhir" / "b.json").read_text(encoding="utf-8"))
 
 
 def check(b):
@@ -88,7 +88,7 @@ def main():
     with tempfile.TemporaryDirectory() as td:
         inp = Path(td) / "in"
         (inp / "fhir").mkdir(parents=True)
-        (inp / "fhir" / "b.json").write_text(json.dumps(BUNDLE, indent=2))
+        (inp / "fhir" / "b.json").write_text(json.dumps(BUNDLE, indent=2), encoding="utf-8")
         c1, b1 = run("secret-one", inp, Path(td) / "o1")
         c2, b1b = run("secret-one", inp, Path(td) / "o1b")
         c3, b2 = run("secret-two", inp, Path(td) / "o2")

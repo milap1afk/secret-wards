@@ -12,7 +12,7 @@ SUITES = ["test_detect", "test_fields", "test_shapes", "test_fhir_ids", "test_fh
 def main():
     worst = 0
     for s in SUITES:
-        r = subprocess.run([sys.executable, str(HERE / f"{s}.py")], capture_output=True, text=True)
+        r = subprocess.run([sys.executable, str(HERE / f"{s}.py")], capture_output=True, text=True, encoding="utf-8", errors="replace")
         last = (r.stdout.strip().splitlines() or [""])[-1]
         state = {0: "PASS", 2: "NOT VERIFIED"}.get(r.returncode, "FAIL")
         print(f"{state:13} {s:20} {last}")
