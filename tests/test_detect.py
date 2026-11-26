@@ -86,6 +86,12 @@ CASES = [
     ("ललिता गायकवाड़ 51 वर्ष", ["ललिता गायकवाड़"], []),
     ("Tab Telmisartan Amlodipine 49/M", [], ["Telmisartan", "Amlodipine"]),
     ("Haemoglobin Random Blood Sugar 45/F", [], ["Haemoglobin", "Random Blood Sugar"]),
+    # --- soft identifiers next to a patient (generalised, not deleted)
+    ("Occupation: Primary school teacher, Rampur", ["Primary school teacher"], []),
+    ("Pt works as a rickshaw puller and works at Lucknow Cold Storage", ["rickshaw puller", "Lucknow Cold Storage"], []),
+    ("Beti Saraswati Shishu Vidya Mandir mein padhti hai", ["Saraswati Shishu Vidya Mandir"], []),
+    ("Fever started on Holi, admitted 2 days after Diwali", ["Holi", "Diwali"], []),
+    ("Holi ke din se bukhar hai", ["Holi ke din"], []),
     # --- canary-style names with role context only
     ("Consent witnessed by Tsering Wangmo, phone 8010993510.", ["Tsering Wangmo", "8010993510"], []),
     ("called by Kaveri Nambiar 94054-71434", ["Kaveri Nambiar", "94054-71434"], []),
@@ -99,7 +105,7 @@ CASES = [
 
 PII_KINDS = {"NAME", "PHONE", "PHONE_MASKED", "AADHAAR", "AADHAAR_MASKED", "ABHA", "ABHA_ADDR", "EMAIL", "PAN",
              "INSURANCE", "MRN", "DOB", "HOUSE", "LOCALITY", "LANDMARK", "VILLAGE", "PIN", "ADDRESS",
-             "UPI", "GOVID", "LONGNUM", "NAME_MODEL"}
+             "UPI", "GOVID", "LONGNUM", "NAME_MODEL", "SOFT"}
 
 
 def covered(spans, text, needle):

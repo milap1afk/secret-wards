@@ -32,7 +32,7 @@ PRIORITY = {
     "PROTECT": 100, "EMAIL": 90, "ABHA_ADDR": 90, "ABHA": 85, "AADHAAR": 84, "AADHAAR_MASKED": 83,
     "PAN": 82, "INSURANCE": 82, "GOVID": 81, "UPI": 90, "PHONE": 80, "LONGNUM": 77, "PHONE_MASKED": 79, "MRN": 78, "DOB": 75, "DATE": 70,
     "NAME": 60, "HOUSE": 55, "LOCALITY": 55, "LANDMARK": 55, "VILLAGE": 54, "PIN": 53, "ADDRESS": 52,
-    "AGE": 40, "NAME_MODEL": 30,
+    "AGE": 40, "NAME_MODEL": 30, "SOFT": 62,
 }
 
 
@@ -236,6 +236,35 @@ RE_AGE = re.compile(
 HONORIFIC_RE = re.compile(r"(?<![\w\u0900-\u097F])(" + "|".join(sorted((re.escape(h) for h in gz.HONORIFIC_SUFFIX), key=len, reverse=True)) + r")(?![\w\u0900-\u097F])", re.I)
 
 
+SOFT_OCC_LABEL = re.compile(r"(?i)(?<![a-z])(?:occupation|profession|pesha|vyavsay|kaam|naukri|व्यवसाय|पेशा)\s*[:\-–]\s*")
+SOFT_OCC_PHRASE = re.compile(r"(?i)\b(?:works as an?|working as an?|by profession an?|is an?|was an?)\s+((?:retired\s+)?(?:school\s+)?"
+                             r"(?:teacher|farmer|kisan|driver|tailor|carpenter|mason|labou?rer|mazdoor|shopkeeper|clerk|"
+                             r"constable|soldier|army jawan|nurse|electrician|plumber|weaver|potter|barber|rickshaw puller|"
+                             r"vendor|priest|maulvi|granthi|student|engineer|lawyer|accountant|peon|guard|chowkidar))\b")
+SOFT_EMPLOYER = re.compile(r"(?i)\b(?:works at|working at|works in|employed (?:at|with|by)|employee of|employer\s*[:\-]|"
+                           r"naukri karta hai|kaam karta hai|kaam karti hai)\s+(?:the\s+)?(?=[A-Z])")
+SOFT_SCHOOL = re.compile(r"(?:[A-Z][a-z]+\s+){1,4}(?:Public School|School|Vidyalaya|Vidya Mandir|Inter College|Degree College|"
+                         r"Shiksha Niketan|Madrasa|Gurukul|Convent)\b|(?:[\u0900-\u097F]+\s+){1,3}(?:विद्यालय|पाठशाला|मदरसा)")
+SOFT_FESTIVAL = re.compile(r"(?i)\b(?:on|during|before|after|since|around|se pehle|ke baad|ke din|par)\s+((?:the\s+)?"
+                           r"(?:holi|diwali|deepawali|eid(?:-ul-(?:fitr|adha))?|bakrid|chhath|navratri|dussehra|dasara|"
+                           r"raksha bandhan|rakhi|karva chauth|janmashtami|makar sankranti|lohri|guru purab|gurpurab|"
+                           r"christmas|muharram|ganesh chaturthi|teej|shivratri)(?:\s+festival)?)\b"
+                           r"|\b((?:holi|diwali|eid|chhath|navratri|dussehra|rakhi)\s+(?:ke din|se pehle|ke baad|par))\b")
+_OCC_CLASS = [(r"teacher|lecturer|professor|student|principal", "education"), (r"farmer|kisan|agricultur", "agricultural work"),
+              (r"driver|rickshaw|transport|conductor", "transport"), (r"labou?rer|mazdoor|mason|carpenter|plumber|electrician|"
+              r"weaver|potter|tailor|barber", "manual work"), (r"shopkeeper|vendor|business|trader", "trade"),
+              (r"constable|soldier|jawan|guard|chowkidar|police", "security services"), (r"nurse|doctor|health", "health work"),
+              (r"clerk|peon|accountant|engineer|lawyer|officer", "office work"), (r"priest|maulvi|granthi|pujari", "religious work")]
+
+
+def occupation_class(occ: str) -> str:
+    low = occ.lower()
+    for pat, cls in _OCC_CLASS:
+        if re.search(pat, low):
+            return cls
+    return "[OCCUPATION]"
+
+
 @dataclass
 class Lexicon:
     """Known PII harvested from structured fields of the whole dataset."""
@@ -330,6 +359,7 @@ class Detector:
         self._lexicon(text, f, spans)
         self._gazetteer(text, f, spans)
         self._model_names(text, f, spans)
+        self._soft(text, f, spans)
         self._dates_ages(text, f, spans)
         return resolve(spans)
 
@@ -672,6 +702,25 @@ class Detector:
                             spans.append(Span(pos + m.start(), pos + m.end(), "NAME_MODEL", value=m.group(0),
                                               meta={"src": "model"}))
             pos += len(line) + 1
+
+    def _soft(self, t, f, spans):
+        """Soft identifiers next to a patient: occupation, employer, school, festival-dated events."""
+        for m in SOFT_OCC_LABEL.finditer(t):
+            vm = re.compile(r"[^\n,;|.()]{2,40}").match(t, m.end())
+            if vm and vm.group(0).strip():
+                spans.append(Span(vm.start(), vm.start() + len(vm.group(0).rstrip()), "SOFT", value="occupation",
+                                  meta={"occ": vm.group(0).strip()}))
+        for m in SOFT_OCC_PHRASE.finditer(t):
+            spans.append(Span(m.start(1), m.end(1), "SOFT", value="occupation", meta={"occ": m.group(1)}))
+        for m in SOFT_EMPLOYER.finditer(t):
+            em = re.compile(r"(?:[A-Z][\w&'.\-]*)(?:\s+(?:[A-Z][\w&'.\-]*|of|and|&))*").match(t, m.end())
+            if em:
+                spans.append(Span(em.start(), em.start() + len(em.group(0).rstrip(" .")), "SOFT", value="employer"))
+        for m in SOFT_SCHOOL.finditer(t):
+            spans.append(Span(m.start(), m.end(), "SOFT", value="school"))
+        for m in SOFT_FESTIVAL.finditer(t):
+            g = 1 if m.group(1) else 2
+            spans.append(Span(m.start(g), m.end(g), "SOFT", value="festival"))
 
     def _dates_ages(self, t, f, spans):
         for m in RE_ISO.finditer(f):

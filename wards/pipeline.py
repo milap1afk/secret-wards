@@ -1008,6 +1008,12 @@ class Pipeline:
             return surrogate_id("ID", core)
         if k in ("PHONE", "PHONE_MASKED"):
             return "[PHONE]"
+        if k == "SOFT":
+            from .detect import occupation_class
+            kind = s.value
+            if kind == "occupation":
+                return occupation_class(s.meta.get("occ", seg))
+            return {"employer": "[EMPLOYER]", "school": "[SCHOOL]", "festival": "[FESTIVAL]"}.get(kind, "[REDACTED]")
         if k == "UPI":
             return "[UPI-ID]"
         if k == "GOVID":
