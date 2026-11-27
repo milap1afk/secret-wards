@@ -32,6 +32,10 @@ CASES = [
     ("Pt Kusum's sister-in-law Rajrani and Mama ji Hiralal came; landline (0512) 2550011",
      ["Kusum", "Rajrani", "Hiralal", "2550011"], ["Mama ji"]),
     ("Address: 17/3 Nehru Marg, Civil Lines, Kanpur", ["17/3", "Nehru Marg"], ["Kanpur"]),
+    ("Patient Name : MR. KESHAV DEV GUPTA   Lab No : 2603050012", ["KESHAV", "GUPTA", "2603050012"], ["Lab No"]),
+    ("Referring Mrs. Archana Pant, 47 yrs; Sunil Pant, 3 yrs back had TB", ["Archana", "47 yrs"], ["3 yrs back"]),
+    ("Assault by persons namely Chhotu and Bunty; tenant at C-14 Rajaji Puram", ["Chhotu", "Bunty", "C-14"], []),
+    ("Name of child: Baby girl; Mother's name: Smt. Rekha", ["Rekha"], ["Baby girl"]),
     ("Born 1931. Widow, aged 9 days? no: grandson aged 9 days", ["1931"], ["aged 9 days"]),       # a 12-digit reference is an ID: removing it is right
     ("DM2 x 8 yrs, H/O TB 2 yrs back, fever for 8 days, HTN since 10 years, Tab Metformin 500 mg 1-0-1 x 5 days",
      [], ["x 8 yrs", "2 yrs back", "for 8 days", "since 10 years", "500 mg", "1-0-1", "x 5 days"]),

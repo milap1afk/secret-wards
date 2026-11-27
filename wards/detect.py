@@ -233,9 +233,12 @@ DOCTOR_RE = re.compile(
     r"|(?:डॉ|डा|डॉक्टर)\.?\s*[\u0900-\u097F]+(?:\s+[\u0900-\u097F]+){0,2}"
 )
 ORG_RE = re.compile(
-    r"(?:[A-Z][A-Za-z'’]+\s+){0,4}(?:Hospitals?|Clinic|Pathology|Diagnostics|Diagnostic|Laboratory|Labs?|Sadan|Centre|Center|"
-    r"University|Institute|Sansthan|Medical\s+University|"
-    r"Nursing\s+Home|Medical\s+College|Trust|PHC|CHC)\b(?:\s*,?\s*[A-Z][a-z]+)?"
+    # one space or tab between words: a column gap ("SINGH   Lab No :") is not part of an organisation's name, and a
+    # head word used as a label ("Lab No", "Hospital ID", "Clinic Name") is not an organisation at all
+    r"(?:[A-Z][A-Za-z'’]+[ \t]){0,4}(?:Hospitals?|Clinic|Pathology|Diagnostics|Diagnostic|Laboratory|Labs?|Sadan|Centre|Center|"
+    r"University|Institute|Sansthan|Medical[ \t]+University|"
+    r"Nursing[ \t]+Home|Medical[ \t]+College|Trust|PHC|CHC)\b"
+    r"(?![ \t]*(?:[Nn]o\b|NO\b|[Nn]o\.|[Nn]umber|ID\b|[Ii]d\b|[Nn]ame|NAME|[:#]))(?:[ \t]?,?[ \t]?(?!No\b)[A-Z][a-z]+)?"
     r"|(?:District|Community|Primary)\s+(?:Hospital|Health\s+Centre)\s+[A-Z][a-z]+"
 )
 CLINICAL_WARD = re.compile(r"(?i)\b(?:male|female|paediatric|pediatric|general|private|semi[- ]private|surgical|medical|"
@@ -299,7 +302,7 @@ RE_TEXTDATE2 = re.compile(r"(?i)(?<![a-z\d])(" + _MON + r")\.?\s+(\d{1,2})(?:st|
 RE_HANDLE = re.compile(r"(?<![a-z0-9._%+\-])@[a-z][a-z0-9_]*[._][a-z0-9_.]*[a-z0-9](?![a-z0-9@])")
 # a "name" label whose value is a placeholder, or which names a thing rather than a person
 NAME_PLACEHOLDER = re.compile(r"(?i)(?:unknown|unidentified|un-known|n\.?a\.?|n/a|nil|none|not\s+known|not\s+available|"
-                              r"withheld|anonymous|unnamed)\b")
+                              r"withheld|anonymous|unnamed|baby\s+(?:boy|girl)|(?:male|female)\s+(?:child|baby|infant)|newborn)\b")
 NAME_OF_THING = re.compile(r"(?i)\bname\s+of\s+(?:the\s+)?(?:test|lab|laboratory|drug|medicine|hospital|clinic|centre|center|"
                            r"facility|procedure|surgery|operation|disease|diagnosis|scheme|insurer|insurance|tpa|company|"
                            r"employer|school|college|institution|vaccine|investigation|department|ward|unit|scan|device|"
@@ -313,6 +316,13 @@ def _not_a_person(text: str, s) -> bool:
     return bool(NAME_OF_THING.search(text[max(0, s.start - 40):s.start]))
 
 
+NAME_THEN_AGE = re.compile(r"\s*,\s*(\d{1,3})(?=\s*(?i:yrs?|years?|y)\b(?!\s*(?i:back|ago|since|before|later|earlier)))")
+# "namely Monu and Sonu", "viz. Ramesh, Suresh": a list of names introduced by a list word
+NAMELY = re.compile(r"(?i)\b(?:namely|viz\.?|videlicet)\s+(?=[A-Z])")
+# "B-12 Defence Colony", "45/3 Shastri Nagar": a house number in front of a named locality makes it an address
+HOUSE_BEFORE_LOCALITY = re.compile(r"\b([A-Z]{1,2}-\d{1,4}|\d{1,4}\s*[/\-]\s*\d{1,4})(?=,?[ \t]+(?:[A-Z][a-z]+[ \t]+){1,3}"
+                                   r"(?:Colony|Nagar|Vihar|Enclave|Puram|Bagh|Ganj|Apartments?|Society|Layout|Extension|Kunj|"
+                                   r"Marg|Road|Lane|Street|Sector)\b)")
 DOSE_AFTER = re.compile(r"(?i)\s*(?:units?|u|iu|mg|mcg|ml|tabs?|caps?|drops?|puffs?|sachets?|tsp)\b")
 RE_AGE = re.compile(
     r"(?i)(?<![\d\-/.x])(?<!x )(\d{1,3})\s*(?:yrs?|years?|y)\.?(?=\s*/\s*(?:[mf]\b|male|female)|\s*,?\s*(?:male|female|m\b|f\b|old\b))"
@@ -488,6 +498,11 @@ class Detector:
         for m in RE_HANDLE.finditer(f):            # "@sunita.verma": a person's handle (not an e-mail's domain)
             spans.append(Span(m.start(), m.end(), "EMAIL", value=m.group(0)))
         spans = [s for s in spans if not (s.kind == "NAME" and s.meta.get("src") == "label" and _not_a_person(text, s))]
+        # "Mrs. Neelam Saxena, 54 yrs": an age written straight after a person's name is that person's age
+        for s in [x for x in spans if x.kind == "NAME"]:
+            am = NAME_THEN_AGE.match(f, s.end)
+            if am:
+                spans.append(Span(am.start(1), am.end(1), "AGE", value=am.group(1)))
         return resolve(spans)
 
     # -------------------------------------------------------------- layers
@@ -805,6 +820,19 @@ class Detector:
             s0, e0, toks = _name_run(t, m.end(), max_tokens=3)
             if toks:
                 spans.append(Span(s0, e0, "NAME", role="relative", value=" ".join(toks), meta={"src": "kinship"}))
+        for m in NAMELY.finditer(t):
+            e0 = m.end()
+            for i in range(6):
+                if i:
+                    lm = re.compile(r"\s*(?:,|&|\band\b|\baur\b)\s*").match(t, e0)
+                    if not lm:
+                        break
+                    e0 = lm.end()
+                s1, e1, toks = _name_run(t, e0, allow_lower=False, max_tokens=3)
+                if not toks or s1 != e0:
+                    break
+                spans.append(Span(s1, e1, "NAME", role="other", value=" ".join(toks), meta={"src": "kinship"}))
+                e0 = e1
         # English kin noun + name: "mother-in-law Ramdulari", "grandson Ankit" (name scorer or gazetteer must agree)
         from .namemodel import is_name as _is_name
         for m in EN_KIN.finditer(t):
@@ -873,6 +901,9 @@ class Detector:
             # "Mohalla Saini": a marker-led locality outranks a surname found inside it
             prio = PRIORITY["NAME"] + 1 if re.match(r"(?i)mohalla|mohallah|muhalla|mohala|locality|colony|मोहल्ला|मुहल्ला", s) else None
             spans.append(Span(m.start(), m.end(), "LOCALITY", value=s.strip(), meta={"prio": prio} if prio else {}))
+        for m in HOUSE_BEFORE_LOCALITY.finditer(t):
+            spans.append(Span(m.start(1), m.end(1), "HOUSE", value=m.group(1)))
+            addr_ctx = True
         if addr_ctx:
             for m in LOCALITY_SUFFIX_RE.finditer(t):
                 words = m.group(0).split()
