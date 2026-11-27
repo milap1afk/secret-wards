@@ -1,8 +1,8 @@
 {
  "practice": {
   "exit": 0,
-  "seconds": 3.05,
-  "peak_mb": 33.4,
+  "seconds": 3.21,
+  "peak_mb": 32.9,
   "contract": "OK",
   "leaked": "0/3230",
   "leak_by_script": "0.0/0.0/0.0%",
@@ -18,8 +18,8 @@
  },
  "chaos": {
   "exit": 0,
-  "seconds": 3.22,
-  "peak_mb": 33.0,
+  "seconds": 3.13,
+  "peak_mb": 34.5,
   "contract": "OK",
   "leaked": "0/3230",
   "leak_by_script": "0.0/0.0/0.0%",
@@ -33,7 +33,7 @@
  },
  "blind": {
   "exit": 0,
-  "seconds": 3.22,
+  "seconds": 3.14,
   "peak_mb": 33.9,
   "contract": "OK",
   "leaked": "0/3273",
@@ -48,8 +48,8 @@
  },
  "blind2": {
   "exit": 0,
-  "seconds": 3.13,
-  "peak_mb": 33.4,
+  "seconds": 3.53,
+  "peak_mb": 34.2,
   "contract": "OK",
   "leaked": "0/3251",
   "leak_by_script": "0.0/0.0/0.0%",
