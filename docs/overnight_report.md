@@ -1,4 +1,6 @@
-**main was NOT updated. It is still at f4484eb (tag `pre-overnight`). The final gate failed at step 3 (100× scale test in the container): see below. All overnight work is on branch `overnight` (head after this report is committed).**
+**main WAS updated (final session, 2026-11-27): main = overnight head. A follow-up speed fix (`textnorm.fold`, output byte-identical) made the 100× container test pass: 19,300 / 19,300 processable files sanitised in 682 s (pre-overnight: 668 s), 60× in 181 s, 30× in 78 s. Re-run on a clean clone: GATE PASS (all numbers unchanged), READY TO SUBMIT, container determinism/locale/secret checks OK, brief 2 pages with re-measured numbers. The original overnight outcome is kept below for the record.**
+
+**(Original overnight outcome, superseded above:) main was NOT updated. It is still at f4484eb (tag `pre-overnight`). The final gate failed at step 3 (100× scale test in the container): see below. All overnight work is on branch `overnight` (head after this report is committed).**
 
 # Overnight report — 2026-11-27
 
