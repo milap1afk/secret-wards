@@ -522,6 +522,9 @@ class Detector:
 
     # -------------------------------------------------------------- layers
     def _protect(self, t, f, spans):
+        # "Umar: 47", "Umr 47 saal": the Hindi word for age as a label, not the given name Umar
+        for m in re.finditer(r"(?i)(?<![A-Za-z])(?:umar|umr)(?=\s*[:\-]?\s*\d)", t):
+            spans.append(Span(m.start(), m.end(), "PROTECT", value="age_label"))
         for m in RE_URL.finditer(t):
             url = m.group(0)
             host = re.match(r"(?i)(?:https?://|urn:)?([^/\s]+)", url).group(1).lower()

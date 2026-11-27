@@ -12,6 +12,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from wards.detect import Detector  # noqa: E402
 
 CASES = [
+    ("Umar: 47", [], ["Umar"]),          # Hindi age label kept; 47 is an AGE span (banded)
+    ("Shri Umar Khan admitted.", ["Umar Khan"], []),
     # --- labels in many spellings
     ("Pt. Name: Ramkali Devi  Age: 62/F", ["Ramkali Devi"], ["62/F"]),
     ("Name of the patient: Bhagwati Prasad Gupta", ["Bhagwati Prasad Gupta"], []),
