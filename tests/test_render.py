@@ -39,6 +39,8 @@ CASES = [
     ("Pt. S. Meenakshi Ammal admitted; Vanniarajan was admitted later; Kaveri's sugar 300; Mother complained of pain",
      ["Meenakshi", "Vanniarajan", "Kaveri"], ["Mother complained"]),
     ("Name: Baljit (alias Billa); Lord Shiva temple; نام: عائشہ صدیقی", ["Baljit", "Billa", "عائشہ"], ["Lord Shiva"]),
+    ("Address: Ward 3, Mohalla Kazi, Rampur\nBed 2, Ward 9 (Surgery); shifted to Ward 11 today; GSTIN 09ABCPK1234D1Z5",
+     ["Ward 3", "Kazi", "ABCPK1234D"], ["Ward 9 (Surgery)"]),
     ("Born 1931. Widow, aged 9 days? no: grandson aged 9 days", ["1931"], ["aged 9 days"]),       # a 12-digit reference is an ID: removing it is right
     ("DM2 x 8 yrs, H/O TB 2 yrs back, fever for 8 days, HTN since 10 years, Tab Metformin 500 mg 1-0-1 x 5 days",
      [], ["x 8 yrs", "2 yrs back", "for 8 days", "since 10 years", "500 mg", "1-0-1", "x 5 days"]),

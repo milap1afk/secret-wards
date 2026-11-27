@@ -131,8 +131,12 @@ RE_PHONE = re.compile(
 )
 # other Indian identifiers (shapes, not labels, so they are found in any context)
 RE_UPI = re.compile(r"(?<![a-z0-9._%+\-])[a-z0-9][a-z0-9._\-]{1,63}@[a-z]{2,32}(?![a-z0-9.@])")
+ADDR_CUE = re.compile(r"(?i)\btehsil\b|\bdistt?\b|\bdistrict\b|\bvill(?:age)?\b|\bpost\b|\bp\.o\.|\bthana\b|\bblock\b|\bmohalla\b|"
+                      r"\bnagar\b|\bcolony\b|तहसील|जिला|ग्राम|पोस्ट|पो\.|थाना|ब्लॉक|मोहल्ला")
 # vehicle and driving-licence numbers start with a state/UT RTO code ("to 02-Jan-2026" is a date range, not a car)
 _RTO = r"(?:an|ap|ar|as|br|bh|cg|ch|dd|dl|dn|ga|gj|hp|hr|jh|jk|ka|kl|la|ld|mh|ml|mn|mp|mz|nl|od|or|pb|py|rj|sk|tn|tr|ts|uk|ua|up|wb)"
+# GSTIN embeds the holder's PAN (2-digit state + PAN + entity + Z + check): a sole proprietor's GSTIN is personal
+RE_GSTIN = re.compile(r"(?<![a-z0-9])\d{2}[a-z]{5}\d{4}[a-z][1-9a-z]z[0-9a-z](?![a-z0-9])")
 RE_DL = re.compile(r"(?<![a-z0-9])" + _RTO + r"[ \-]?\d{2}[ \-]?(?:19|20)\d{2}[ \-]?\d{7}(?![a-z0-9])")
 RE_VEHICLE = re.compile(r"(?<![a-z0-9])" + _RTO + r"[ \-]?\d{1,2}[ \-]?(?!(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[ \-]?(?:19|20)\d\d)"
                         r"[a-z]{1,3}[ \-]?\d{4}(?![a-z0-9])")
@@ -557,7 +561,7 @@ class Detector:
             dom = m.group(0).split("@", 1)[1]
             if dom not in ("abdm", "sbx", "ndhm", "abha"):
                 spans.append(Span(m.start(), m.end(), "UPI", value=m.group(0)))
-        for rx in (RE_DL, RE_VEHICLE, RE_PASSPORT, RE_EPIC):
+        for rx in (RE_GSTIN, RE_DL, RE_VEHICLE, RE_PASSPORT, RE_EPIC):
             for m in rx.finditer(f):
                 spans.append(Span(m.start(), m.end(), "GOVID", value=m.group(0).upper()))
         for m in RE_LONGNUM.finditer(f):     # 9+ digit runs are never doses, vitals, labs, dates or ages
