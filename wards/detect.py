@@ -205,7 +205,7 @@ REL_BRACKET_NAME = re.compile(r"(?i:\b(?:spouse|wife|husband|son|daughter|father
 AGE_SEX_BRACKET = re.compile(r"\(\s*(?:[MF]\s*/\s*\d{1,3}|\d{1,3}\s*(?:Y|Yrs?|years?)?\s*/\s*[MF])\s*\)")
 SUBJ_VERB = re.compile(r"(?:^|(?<=[.;!\n]\s)|(?<=^\s))([A-Z][a-z]{2,})\s+(?:called|phoned|rang|came|visited|paid|signed|informed|counselled|enquired|requested|refused|consented|agreed|left|brought)\b", re.M)
 OBJ_VERB = re.compile(r"(?i:\b(?:told|informed|called|phoned|counselled|counseled|asked|briefed|advised|explained\s+to))\s+(?=[A-Z])")
-GENERIC_ID_LABEL = re.compile(r"(?i)(?<![a-z])((?:[a-z][a-z.]{0,12}\s){0,2}[a-z][a-z.]{0,12})\s*(?:no\.?|number|num|id|#|code|card|policy|ref\.?|reference|account|a/c)(?![a-z])\s*[:#\-–=]?\s*")
+GENERIC_ID_LABEL = re.compile(r"(?i)(?<![a-z])((?:[a-z][a-z.]{0,12}\s){0,2}[a-z][a-z.]{0,12})(?:\s+|(?<=\.)|(?=#))(?:no\.?|number|num|id|#|code|card|policy|ref\.?|reference|account|a/c)(?![a-z])\s*[:#\-–=]?\s*")
 NON_ID_LABEL = re.compile(r"(?i)(?<![a-z])(opd|visit|bill|invoice|receipt|sample|lab|test|batch|lot|package|pkg|loinc|icd|snomed|trip|ticket|order|bed|ward|room|unit|page|ref\.?\s*range|phone|mobile|mob|contact|cell|tel|pin|zip|postal|house|h|gali|plot|flat|serial|sr|s|sl)$")
 PLACE_MARKER_ANY = re.compile(r"(?<![A-Za-z])(?:Gram\s+Panchayat|Panchayat|Thana|Native\s+of|[Rr]\s*/\s*[Oo]|ग्राम\s+पंचायत|थाना|निवासी)\s*[:\-]?\s*(?=[A-Z\u0900-\u097F])")
 PLACE_MARKER_ADDR = re.compile(r"(?<![A-Za-z\u0900-\u097F])(?:P\.?\s?O\.?|Post|P\.?\s?S\.?|Block|Tola|Purwa|Nagla|Majra|डाकघर|पोस्ट|पो\.|ब्लॉक|टोला|पुरवा|नगला|मजरा)\s*[:\-]?\s*(?=[A-Z\u0900-\u097F])")
@@ -283,6 +283,7 @@ RE_YMD = re.compile(r"(?<![\d])(\d{4})[/.](\d{1,2})[/.](\d{1,2})(?![\d])")
 RE_HINDIDATE = re.compile(r"(?<![\d])(\d{1,2})\s+(जनवरी|फ़रवरी|फरवरी|मार्च|अप्रैल|अप्रेल|मई|जून|जुलाई|अगस्त|सितंबर|सितम्बर|अक्टूबर|अक्तूबर|नवंबर|नवम्बर|दिसंबर|दिसम्बर)\s+(\d{4})(?![\d])")
 RE_COMPACT = re.compile(r"(?<![\d])((?:19|20)\d{2})(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])(?![\d])")
 RE_TEXTDATE2 = re.compile(r"(?i)(?<![a-z\d])(" + _MON + r")\.?\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{4})(?![\d])")
+DOSE_AFTER = re.compile(r"(?i)\s*(?:units?|u|iu|mg|mcg|ml|tabs?|caps?|drops?|puffs?|sachets?|tsp)\b")
 RE_AGE = re.compile(
     r"(?i)(?<![\d\-/.x])(?<!x )(\d{1,3})\s*(?:yrs?|years?|y)\.?(?=\s*/\s*(?:[mf]\b|male|female)|\s*,?\s*(?:male|female|m\b|f\b|old\b))"
     r"|(?<![\d\-/.:])(\d{1,3})\s*/\s*(?=[mf]\b|male\b|female\b)"
@@ -974,6 +975,8 @@ class Detector:
         for m in RE_ISO.finditer(f):
             spans.append(Span(m.start(), m.end(), "DATE", value=m.group(0), meta={"fmt": "iso"}))
         for m in RE_NUMDATE.finditer(f):
+            if DOSE_AFTER.match(f, m.end()):
+                continue            # "Insulin 10-8-12 units": a dosing schedule, not a date
             spans.append(Span(m.start(), m.end(), "DATE", value=m.group(0), meta={"fmt": "num"}))
         for m in RE_TEXTDATE.finditer(f):
             spans.append(Span(m.start(), m.end(), "DATE", value=m.group(0), meta={"fmt": "text"}))
