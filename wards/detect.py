@@ -140,7 +140,7 @@ RE_PASSPORT = re.compile(r"(?<![a-z0-9])[a-z][1-9]\d{6}(?![a-z0-9])")
 RE_EPIC = re.compile(r"(?<![a-z0-9])[a-z]{3}\d{7}(?![a-z0-9])")
 RE_IFSC = re.compile(r"(?<![a-z0-9])[a-z]{4}0[a-z0-9]{6}(?![a-z0-9])")
 RE_LONGNUM = re.compile(r"(?<![\d.])\d{9,18}(?![\d.])")
-RE_LANDLINE = re.compile(r"(?<![\d+])(?:\+91[ \-]?|0)\d{2,4}[ \-]\d{6,8}(?!\d)")
+RE_LANDLINE = re.compile(r"(?<![\d+])(?:\+91[ \-]?|0)\d{2,4}[ \-]\d{6,8}(?!\d)|\(\s*0\d{2,4}\s*\)[ \-]?\d{6,8}(?!\d)")
 RE_PHONE_INTL = re.compile(r"(?<![\d+])\+(?!91)\d{1,3}[ \-.]?\(?\d{1,4}\)?(?:[ \-.]?\d){6,10}(?!\d)")
 RE_PHONE_MASKED = re.compile(r"(?<![a-z0-9])[6-9]\d[x*]{6}\d{2}(?![a-z0-9])|(?<![a-z0-9])[6-9]\d{1,3}[x*]{4,7}\d{1,4}(?![a-z0-9])")
 RE_INSURANCE = re.compile(
@@ -199,6 +199,12 @@ ROLE_NOUN = re.compile(r"(?<![A-Za-z])(?i:patient|pt\.?|mareez|mariz|rogi|benefi
                        r"contractor|thekedar|employer|landlord|landlady|tenant|driver|maid|servant|cook|shopkeeper|colleague|"
                        r"co-?worker|friend|boss|supervisor|classmate|roommate|chowkidar|watchman|vendor)\s+(?=[A-Z\u0900-\u097F])"
                        r"|(?:मरीज़|मरीज|रोगी|पड़ोसी|पड़ोसन|परिजन|रिश्तेदार|परिचारक|मित्र|सहेली|दोस्त)\s+(?=[\u0900-\u097F])")
+KIN_WORDS = {"mama", "mami", "chacha", "chachi", "bhaiya", "bhai", "didi", "behen", "bahen", "bhabhi", "maa", "papa", "pita",
+             "nana", "nani", "dada", "dadi", "devar", "jeth", "saas", "sasur", "damad", "bahu", "beta", "beti", "mausi",
+             "mausa", "bua", "fufa", "tau", "tai", "amma", "abba", "ammi", "baba"}
+EN_KIN = re.compile(r"(?i)\b(?:wife|husband|son|daughter|father|mother|brother|sister|nephew|niece|uncle|aunt|grandson|"
+                    r"granddaughter|grandfather|grandmother|cousin|(?:mother|father|son|daughter|brother|sister)-in-law)"
+                    r"(?:\s+(?:mr|mrs|ms|shri|smt)\.?)?\s+(?=[A-Z])")
 # "(Tsering Dolma, 41F)", "(Ramesh, 58 M)": a name sharing brackets with age and sex
 NAME_AGE_BRACKET = re.compile(r"\(\s*((?:[A-Z][a-z'\-]+\.?\s+){0,3}[A-Z][a-z'\-]+)\s*,\s*\d{1,3}\s*(?:y|yrs?|years?)?\s*/?\s*[MF]\b")
 # "spouse (Meenakshi)", "son (Rakesh Kumar)": a relation word with the name in brackets
@@ -267,7 +273,7 @@ LOCALITY_RE = re.compile(
 # "<Shastri> Nagar", "<Sunshine> Apartments": a sub-district locality named by its suffix (used in address context)
 LOCALITY_SUFFIX_RE = re.compile(r"\b(?:[A-Z][a-z]+\s+){1,3}(?:Nagar|Colony|Vihar|Enclave|Puram|Bagh|Ganj|Pura|Apartments?|"
                                 r"Residency|Society|Heights|Towers?|Complex|Basti|Layout|Extension|Kunj|Niwas|Sadan|Market|"
-                                r"Lines|Town|Chowk|Mohalla|Tola|Khera|Patti)\b")
+                                r"Lines|Town|Chowk|Mohalla|Tola|Khera|Patti|Marg|Road|Rd|Path|Street|Lane|Gali|Sarani|Salai|Nagara)\b")
 LANDMARK_RE = re.compile(
     r"(?:(?i:near|opp\.?|opposite|behind|beside|next\s+to|in\s+front\s+of|close\s+to|nr\.?)\s+(?:the\s+)?(?:[A-Z][a-z]+\.?\s*){1,4})"
     r"|(?:[\u0900-\u097F]+\s+){1,3}(?:के|की)\s+(?:पास|पीछे|सामने|बगल\s+में|नज़दीक|निकट)"
@@ -749,8 +755,8 @@ class Detector:
                 if not mm:
                     break
                 tok = mm.group(1).rstrip(".")
-                if not (is_name_token(tok) or tok.lower() in ("md", "mohd")):
-                    break
+                if not (is_name_token(tok) or tok.lower() in ("md", "mohd")) or tok.lower() in KIN_WORDS:
+                    break           # "Mama ji", "Didi ji": a relation, not a name
                 if tok.lower() in gz.DOCTOR_PREFIX:
                     seq = []
                     break
@@ -795,9 +801,15 @@ class Detector:
                 if not re.search(r"(?i)\b(?:dr|doctor)\.?\s*$", t[max(0, m.start(1) - 5):m.start(1)]):
                     spans.append(Span(m.start(1), m.end(1), "NAME", value=m.group(1), meta={"src": "possessive"}))
         # Hinglish kinship: "bete Pancham ne", "pati Ramesh ko", "unki beti Sunita"
-        for m in re.finditer(r"(?i)\b(?:beta|bete|beti|bitiya|pati|patni|bahu|bhai|bhaiya|behen|bahen|bhabhi|maa|pita|papa|chacha|chachi|mama|mami|nana|nani|dada|dadi|devar|jeth|saas|sasur|damad)\s+(?=[A-Z])", t):
+        for m in re.finditer(r"(?i)\b(?:beta|bete|beti|bitiya|pati|patni|bahu|bhai|bhaiya|behen|bahen|bhabhi|maa|pita|papa|chacha|chachi|mama|mami|nana|nani|dada|dadi|devar|jeth|saas|sasur|damad)(?:\s+ji)?\s+(?=[A-Z])", t):
             s0, e0, toks = _name_run(t, m.end(), max_tokens=3)
             if toks:
+                spans.append(Span(s0, e0, "NAME", role="relative", value=" ".join(toks), meta={"src": "kinship"}))
+        # English kin noun + name: "mother-in-law Ramdulari", "grandson Ankit" (name scorer or gazetteer must agree)
+        from .namemodel import is_name as _is_name
+        for m in EN_KIN.finditer(t):
+            s0, e0, toks = _name_run(t, m.end(), max_tokens=3)
+            if toks and s0 == m.end() and any(gz.is_known_name_token(x) or _is_name(x) for x in toks):
                 spans.append(Span(s0, e0, "NAME", role="relative", value=" ".join(toks), meta={"src": "kinship"}))
         # Devanagari: "<नाम> (पड़ोसी)", "<नाम> (पुत्र)" and "<नाम>, मो. 98..." (name right before a phone label)
         for m in re.finditer(r"((?:[\u0900-\u0963\u0970-\u097F]+\s+){0,2}[\u0900-\u0963\u0970-\u097F]+)\s*\(\s*(?:पड़ोसी|पड़ोसन|परिजन|रिश्तेदार|पुत्र|पुत्री|पत्नी|पति|भाई|बहन|बेटा|बेटी|माँ|माता|पिता|ससुर|सास|देवर|जेठ|चाचा|मामा|परिचारक|मित्र|दोस्त)", t):
@@ -850,6 +862,8 @@ class Detector:
     def _address(self, t, f, spans, addr_ctx):
         for m in HOUSE_RE.finditer(t):
             spans.append(Span(m.start(), m.end(), "HOUSE", value=m.group(0)))
+        for m in re.finditer(r"(?i)(?:address|addr|pata|पता|r/o)\s*[:\-–]\s*(\d{1,4}\s*[/\-]\s*\d{1,4}[a-z]?|\d{1,4}[a-z]?)(?=\s*,|\s+[A-Z])", t):
+            spans.append(Span(m.start(1), m.end(1), "HOUSE", value=m.group(1)))     # "Address: 45/12 Ashok Marg"
         for m in LOCALITY_RE.finditer(t):
             s = m.group(0)
             if re.match(r"(?i)ward|वार्ड", s):           # a ward number is clinical unless the text is an address

@@ -29,6 +29,9 @@ CASES = [
      ["Widal", "Thyrocare", "Name: NA"]),
     ("Bed: 9, Female Surgical Ward\nAddress: Vill. Kakrahi, Distt Sitapur", ["Kakrahi"],
      ["Female Surgical Ward\nAddress:", "Sitapur"]),
+    ("Pt Kusum's sister-in-law Rajrani and Mama ji Hiralal came; landline (0512) 2550011",
+     ["Kusum", "Rajrani", "Hiralal", "2550011"], ["Mama ji"]),
+    ("Address: 17/3 Nehru Marg, Civil Lines, Kanpur", ["17/3", "Nehru Marg"], ["Kanpur"]),
     ("Born 1931. Widow, aged 9 days? no: grandson aged 9 days", ["1931"], ["aged 9 days"]),       # a 12-digit reference is an ID: removing it is right
     ("DM2 x 8 yrs, H/O TB 2 yrs back, fever for 8 days, HTN since 10 years, Tab Metformin 500 mg 1-0-1 x 5 days",
      [], ["x 8 yrs", "2 yrs back", "for 8 days", "since 10 years", "500 mg", "1-0-1", "x 5 days"]),
