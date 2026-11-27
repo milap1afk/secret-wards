@@ -149,16 +149,16 @@ round, scored with the same tools); the full official log is `docs/results/offic
 | linking P / R / F0.5 [O] | 1.00 / 1.00 / 1.00 | 1.00 / 0.99 / 1.00 | 1.00 / 0.97 / 0.99 (before: 0.74 / 0.63 / 0.71) |
 | false merges [O] | 0 | 0 | 0 (before: 11) |
 | raw copies of unsupported files [O] | 0 | 0 | 0 |
-| A2/A3 · A4 · A5 risk vs raw [L] | 0.066 · 0.229 · 0.571 | 0.147 · 0.213 · 0.558 | 0.077 · 0.354 · 0.578 |
+| A2/A3 · A4 · A5 risk vs raw [L] | 0.066 · 0.229 · 0.571 | 0.147 · 0.213 · 0.570 | 0.067 · 0.292 · 0.578 |
 | A1 · A6 · A7 [L] | 0 · 0 · 0.006 | 0 · 0 · 0.006 | 0 · 0 · 0 |
-| combined risk, SCORING.md weights [L] | 0.174 (before 0.342) | 0.184 (before 0.402) | 0.202 (before 0.425) |
+| combined risk, SCORING.md weights [L] | 0.174 (before 0.342) | 0.187 (before 0.402) | 0.187 (before 0.425) |
 | FHIR R4: fhir.resources 6.5 and tools/fhir_check.py [L] | 19 / 19 valid | 19 / 19 | 19 / 19 |
-| run time / peak memory [L] | 2.8 s / 33 MB | 3.4 s / 32 MB | 3.1 s / 33 MB |
+| run time / peak memory [L] | 2.6 s / 34 MB | 2.7 s / 33 MB | 2.9 s / 33 MB |
 
 Also measured [O]: `check_submission.py --run` on a clean clone prints READY TO SUBMIT (same secret →
 identical output, different secret → different output, secret never written, input untouched).
-[L]: contextual precision 1.000 and token retention 0.986 on practice; 100× practice (20,000 files) in 263 s
-at 0.95 GB peak, scaling exponent ≈ 1.04 (25× → 50×); six adversarial 5 MB single-line files in ≈ 70 s each;
+[L]: contextual precision 1.000 and token retention 0.985 on practice; 100× practice (20,000 files) in a 2-CPU / 4 GB container in 682 s,
+every processable file sanitised (60×: 181 s, 30×: 78 s); six adversarial 5 MB single-line files in ≈ 70 s each;
 byte-identical output in Linux containers on Python 3.10 and 3.12 with no network, 2 CPUs, 4 GB, `LC_ALL=C`
 and a forced ASCII default encoding (`tools/run_in_container.sh`).
 
