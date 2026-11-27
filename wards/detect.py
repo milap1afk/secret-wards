@@ -131,8 +131,6 @@ RE_PHONE = re.compile(
 )
 # other Indian identifiers (shapes, not labels, so they are found in any context)
 RE_UPI = re.compile(r"(?<![a-z0-9._%+\-])[a-z0-9][a-z0-9._\-]{1,63}@[a-z]{2,32}(?![a-z0-9.@])")
-ADDR_CUE = re.compile(r"(?i)\btehsil\b|\bdistt?\b|\bdistrict\b|\bvill(?:age)?\b|\bpost\b|\bp\.o\.|\bthana\b|\bblock\b|\bmohalla\b|"
-                      r"\bnagar\b|\bcolony\b|तहसील|जिला|ग्राम|पोस्ट|पो\.|थाना|ब्लॉक|मोहल्ला")
 # vehicle and driving-licence numbers start with a state/UT RTO code ("to 02-Jan-2026" is a date range, not a car)
 _RTO = r"(?:an|ap|ar|as|br|bh|cg|ch|dd|dl|dn|ga|gj|hp|hr|jh|jk|ka|kl|la|ld|mh|ml|mn|mp|mz|nl|od|or|pb|py|rj|sk|tn|tr|ts|uk|ua|up|wb)"
 # GSTIN embeds the holder's PAN (2-digit state + PAN + entity + Z + check): a sole proprietor's GSTIN is personal
