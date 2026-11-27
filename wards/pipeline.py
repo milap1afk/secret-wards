@@ -1407,6 +1407,8 @@ class Pipeline:
                 self._gen()
                 return age_band(a, self._cur_unit.age_width if self._cur_unit else 0)
             return v
+        if isinstance(v, float) and v.is_integer() and abs(v) >= 1e8:
+            v = int(v)          # 9837300001.0 from a spreadsheet export is the same phone number as an int
         if isinstance(v, int) and not isinstance(v, bool):
             d = str(abs(v))
             if len(d) == 12 and d[0] in "23456789":

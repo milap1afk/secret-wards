@@ -30,6 +30,17 @@ def main():
             fails.append("non-zero exit")
         fails += [f"leaked {g}" for g in GONE if g in t]
         fails += [f"lost {k}" for k in KEEP if k not in t]
+    with tempfile.TemporaryDirectory() as td:        # numbers stored as floats by a spreadsheet export
+        inp, out = Path(td) / "in", Path(td) / "out"
+        inp.mkdir()
+        (inp / "x.json").write_text('{"rows":[{"name":"Tara Bisht","contact":9837300001.0,"hb":10.5,"pulse":88.0}]}')
+        subprocess.run([sys.executable, str(ROOT / "main.py"), "--input", str(inp), "--output", str(out)],
+                       env=dict(os.environ, RAKSHA_SECRET="fallback"), capture_output=True, text=True)
+        t = (out / "sanitized" / "x.json").read_text(encoding="utf-8")
+        if "9837300001" in t:
+            fails.append("float phone kept")
+        if '"hb":10.5' not in t or '"pulse":88.0' not in t:
+            fails.append("float measurement changed")
     for f in fails:
         print("FAIL", f)
     print(f"leaf fallback test: {len(fails)} failures")
