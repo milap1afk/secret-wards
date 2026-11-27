@@ -83,7 +83,7 @@ _RULES = [
     (r" (state|rajya|country) ", STATE),
     (r" (village|vill|gaon|ganv|gav|gram|gramam|mauza|town|city) ", VILLAGE),
     (r" (mohalla|locality|colony|area|ward no|sector) ", LOCALITY),
-    (r" (address|addr|street|line|house|makan|pata|residence|location address|res) ", ADDRESS),
+    (r" (address|addr|street|line|house|makan|pata|residence|location address|res|thikana|nivas|niwas|nivas sthan) ", ADDRESS),
     (r" (patient name|patient|pt name|name|naam|full name|nam|beneficiary|insured|rogi|rogi ka nam|mareez|mariz|marij|labharthi|purna nam|pura nam|pora nam) ", NAME),
     (r" (date|dt|on|time|timestamp|tarikh|tithi|dinank|collected|reported|admitted|discharged|registered|visit|generated|updated|created|exported) ", DATE),
 ]

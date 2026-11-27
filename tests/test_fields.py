@@ -47,6 +47,17 @@ def main():
         if classify_json(key, ["_export_meta"]) != OTHER_PERSON_IF_NAMED:
             print(f"{key}: not treated as a possible person")
             return 1
+    from wards.fields import classify_header
+    for h in ("ठिकाना", "निवास", "thikana"):
+        if classify_header(h) != "address":
+            print(f"{h!r}: not an address header")
+            return 1
+    from wards.pipeline import split_embedded_relation
+    for cell, want in (("Mrs. Kanta w/o Suraj Bhan", ("Mrs. Kanta", "Suraj Bhan")), ("Ramesh S/O Mohan Lal", ("Ramesh", "Mohan Lal")),
+                       ("सीमा पत्नी राजेश", ("सीमा", "राजेश")), ("Sunita Devi", ("Sunita Devi", ""))):
+        if split_embedded_relation(cell) != want:
+            print(f"{cell!r}: split {split_embedded_relation(cell)} (want {want})")
+            return 1
     # hyphen / space / possessive spellings of a key mean the same as the underscore form
     for a, b in (("emergency-contact-phone", "emergency_contact_phone"), ("mothers-name", "mother_name"),
                  ("Husband's Name", "husband_name"), ("guardian.name", "guardian_name")):

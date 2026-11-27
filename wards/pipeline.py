@@ -265,6 +265,18 @@ def id_core(s: str) -> str:
 _REL_MARKER = re.compile(r"^\s*(S\s*/\s*O|D\s*/\s*O|W\s*/\s*O|C\s*/\s*O|H\s*/\s*O|son of|daughter of|wife of|husband of|पुत्र|पुत्री|पत्नी|पति)\.?\s*:?\s*", re.I)
 
 
+_REL_INSIDE = re.compile(r"(?i)(?:^|\s|,)(?:[SDWHC]\s*/\s*O|son\s+of|daughter\s+of|wife\s+of|husband\s+of)\b\.?\s*:?\s*"
+                         r"|\s(?:पुत्र|पुत्री|पत्नी|पति)\s+")
+
+
+def split_embedded_relation(v: str) -> tuple:
+    """'Mrs. Kanta w/o Suraj Bhan' -> ('Mrs. Kanta', 'Suraj Bhan'): a relative named inside the patient's cell."""
+    m = _REL_INSIDE.search(v or "")
+    if m and m.start() > 0 and v[:m.start()].strip():
+        return v[:m.start()].strip(" ,"), v[m.end():].strip()
+    return v, ""
+
+
 def strip_rel_marker(v: str) -> tuple:
     m = _REL_MARKER.match(v or "")
     if m:
@@ -748,7 +760,10 @@ class Pipeline:
                 if t.lower() not in ("doctor",):
                     self.doctor_tokens.add(t.lower())
         elif sem in (F.NAME, F.FIRST, F.LAST, F.LOCAL_NAME):
-            self._add_name(s, "patient")
+            own, rel = split_embedded_relation(s)
+            self._add_name(own, "patient")
+            if rel:
+                self._add_name(rel, "relative")
         elif sem == F.REL_NAME:
             self._add_name(strip_rel_marker(s)[1], "relative")
         elif sem == F.OTHER_PERSON:
@@ -788,9 +803,13 @@ class Pipeline:
                 continue
             sem = lf.sem
             if sem in (F.NAME, F.LOCAL_NAME):
-                toks = name_tokens(s)
-                if toks and not re.search(r"\d", s):
+                own, rel = split_embedded_relation(s)
+                toks = name_tokens(own)
+                if toks and not re.search(r"\d", own):
                     ev.names.append(toks)
+                rtoks = name_tokens(rel) if rel else []
+                if rtoks:
+                    ev.rel_names.append(rtoks)
             elif sem == F.FIRST:
                 names_first.append(s)
             elif sem == F.LAST:
