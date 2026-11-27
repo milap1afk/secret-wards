@@ -269,6 +269,11 @@ _REL_INSIDE = re.compile(r"(?i)(?:^|\s|,)(?:[SDWHC]\s*/\s*O|son\s+of|daughter\s+
                          r"|\s(?:पुत्र|पुत्री|पत्नी|पति)\s+")
 
 
+def _plain_value(s: str) -> bool:
+    """A short vocabulary-like value (one to three words, no brackets or separators that could carry a note)."""
+    return len(s) <= 40 and not re.search(r"[()\[\]:;,/]|\s[-–]\s", s) and len(s.split()) <= 3
+
+
 def split_embedded_relation(v: str) -> tuple:
     """'Mrs. Kanta w/o Suraj Bhan' -> ('Mrs. Kanta', 'Suraj Bhan'): a relative named inside the patient's cell."""
     m = _REL_INSIDE.search(v or "")
@@ -1316,7 +1321,7 @@ class Pipeline:
             return "[PAN]"
         if sem == F.INSURANCE:
             if not re.search(r"\d{4}", s):
-                return s
+                return self._render_free(s, u, sweep)    # "Star Health" stays; "Self - <name>" does not
             self._count("INSURANCE")
             return "[INSURANCE-ID]"
         if sem == F.EMAIL:
@@ -1343,14 +1348,14 @@ class Pipeline:
                 self._gen()
                 m = re.match(r"^\s*\d{1,3}", fold(s))
                 return age_band(a, u.age_width) + s[m.end():]
-            return s
+            return self._render_free(s, u, sweep)
         if sem == F.AGE_SEX:
             a = parse_age(s)
             if a >= 0:
                 self._gen()
                 m = re.match(r"^\s*\d{1,3}", fold(s))
                 return age_band(a, u.age_width) + s[m.end():]
-            return s
+            return self._render_free(s, u, sweep)
         if sem == F.PIN:
             self._count("PIN")
             self._gen()
@@ -1373,8 +1378,9 @@ class Pipeline:
         if sem in (F.DOCTOR, F.ORG, F.KEEP, F.GENDER, F.RELATION, F.TEHSIL, F.DISTRICT, F.STATE):
             if sem == F.KEEP and (lf.key in ("reference",)):
                 return s
-            if sem in (F.GENDER, F.RELATION, F.TEHSIL, F.DISTRICT, F.STATE, F.KEEP) and not re.search(r"\d{5,}", s):
-                return s
+            if sem in (F.GENDER, F.RELATION, F.TEHSIL, F.DISTRICT, F.STATE, F.KEEP) and not re.search(r"\d{5,}", s) \
+                    and _plain_value(s):
+                return s           # "F", "Mother", "Uttar Pradesh", a code: nothing in it can be a person
             if sem in (F.DOCTOR, F.ORG):
                 return s
             return self._render_free(s, u, sweep)
