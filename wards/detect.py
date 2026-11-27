@@ -195,7 +195,9 @@ PATIENT_ROLE_WORD = re.compile(r"(?<![a-z])(patient|pt|beneficiary|insured|membe
 REL_ROLE_WORD = re.compile(r"(?<![a-z])(attendant|relative|guardian|abhibhavak|अभिभावक|परिजन|parijan|kin|nok|husband|wife|father|mother|son|daughter|spouse|parent|nominee|emergency|contact person|escort|bystander|pati|patni|pita|mata)(?![a-z])")
 ROLE_WORD = re.compile(PATIENT_ROLE_WORD.pattern + "|" + REL_ROLE_WORD.pattern + r"|(?<![a-z])(contacts?|informants?|callers?|witness(?:es)?|donors?|recipients?|visitors?|referred by patient)(?![a-z])")
 CLINICAL_LABEL = re.compile(r"(?<![a-z])(diagnosis|advice|adv|rx|complaint|complaints|c/o|history|h/o|k/c/o|ward|bed|consultant|doctor|dr|surgeon|department|dept|test|result|investigation|impression|plan|procedure|medication|medicine|drug|dose|frequency|vitals|bp|pulse|temp|spo2|weight|height|bmi|remarks?|notes?|course|treatment|status|hospital|unit|specimen|sample|lab|room|date|time|age|sex|gender|address|village|district|tehsil|state|pin|mobile|phone|email|uhid|mrn|id|no|number)(?![a-z])")
-ROLE_NOUN = re.compile(r"(?<![A-Za-z])(?i:patient|pt\.?|mareez|mariz|rogi|beneficiary|visitor|neighbou?r|caretaker|attendant|escort|bystander)\s+(?=[A-Z\u0900-\u097F])"
+ROLE_NOUN = re.compile(r"(?<![A-Za-z])(?i:patient|pt\.?|mareez|mariz|rogi|beneficiary|visitor|neighbou?r|caretaker|attendant|escort|bystander|"
+                       r"contractor|thekedar|employer|landlord|landlady|tenant|driver|maid|servant|cook|shopkeeper|colleague|"
+                       r"co-?worker|friend|boss|supervisor|classmate|roommate|chowkidar|watchman|vendor)\s+(?=[A-Z\u0900-\u097F])"
                        r"|(?:मरीज़|मरीज|रोगी|पड़ोसी|पड़ोसन|परिजन|रिश्तेदार|परिचारक|मित्र|सहेली|दोस्त)\s+(?=[\u0900-\u097F])")
 # "(Tsering Dolma, 41F)", "(Ramesh, 58 M)": a name sharing brackets with age and sex
 NAME_AGE_BRACKET = re.compile(r"\(\s*((?:[A-Z][a-z'\-]+\.?\s+){0,3}[A-Z][a-z'\-]+)\s*,\s*\d{1,3}\s*(?:y|yrs?|years?)?\s*/?\s*[MF]\b")
@@ -230,7 +232,12 @@ ORG_RE = re.compile(
     r"Nursing\s+Home|Medical\s+College|Trust|PHC|CHC)\b(?:\s*,?\s*[A-Z][a-z]+)?"
     r"|(?:District|Community|Primary)\s+(?:Hospital|Health\s+Centre)\s+[A-Z][a-z]+"
 )
-CLINICAL_WARD = re.compile(r"(?i)\bward\s*(?:no\.?\s*)?\d{1,2}\s*\((?:[a-z ]+)\)|\bward\s*/\s*bed\b|\bward\s*\d{1,2}\s*/\s*bed\s*\d+|\bbed\s*(?:no\.?\s*)?\d+")
+CLINICAL_WARD = re.compile(r"(?i)\b(?:male|female|paediatric|pediatric|general|private|semi[- ]private|surgical|medical|"
+                           r"ortho(?:paedic|pedic)?|maternity|labour|labor|isolation|burns?|emergency|casualty|cardiac|"
+                           r"chest|tb|eye|ent|psychiatry|psychiatric|gynae?|obstetric|post[- ]?op|pre[- ]?op|step[- ]?down|"
+                           r"dialysis|oncology|neuro|neonatal|surgery|medicine)(?:[ \t]+(?:medical|surgical|general|ortho|"
+                           r"medicine|surgery))*[ \t]+ward\b|"
+                           r"\bward\s*(?:no\.?\s*)?\d{1,2}\s*\((?:[a-z ]+)\)|\bward\s*/\s*bed\b|\bward\s*\d{1,2}\s*/\s*bed\s*\d+|\bbed\s*(?:no\.?\s*)?\d+")
 COMPLAINT_RE = re.compile(r"(?i)\b(?:k\s*/\s*c\s*/\s*o|h\s*/\s*o|c\s*/\s*o)\b\s*:?\s*(?=[a-z(]|no\b|known)|\bk/c/o\b")
 EPONYM_RE = re.compile(r"(?i)\b(?-i:(?:[A-Z][a-z]+[\s\-]+){0,2})[A-Z][a-z]+(?:'s|’s|s)?\s+(?:disease|syndrome|palsy|sarcoma|lymphoma|anomaly|"
                        r"phenomenon|ulcer|test|sign|fracture|nodule|node|reflex|manoeuvre|maneuver|triad|tumou?r|cyst|"
@@ -254,7 +261,7 @@ HOUSE_RE = re.compile(
     r"qtr\.?\s*no\.?|quarter\s*no\.?|मकान\s*(?:नं\.?|नंबर|संख्या)?|म\.\s*नं\.?|घर\s*(?:नं\.?|नंबर)?)\s*[:\-]?\s*\d+[a-z]?(?:\s*[/-]\s*\d+[a-z]?)?"
 )
 LOCALITY_RE = re.compile(
-    r"(?:(?i:mohalla|mohallah|muhalla|mohala|mohalla:|locality|colony|sector|ward\s*no\.?|ward)\s*[:\-]?\s*(?:\d{1,3}\b|(?:[A-Z][a-z]+\s*){1,3}))"
+    r"(?:(?i:mohalla|mohallah|muhalla|mohala|mohalla:|locality|colony|sector|ward\s*no\.?|ward)[ \t]*[:\-]?[ \t]*(?:\d{1,3}\b|(?:[A-Z][a-z]+[ \t]*){1,3}))"
     r"|(?:मोहल्ला|मुहल्ला|वार्ड)\s*(?:नं\.?\s*)?(?:\d{1,3}|[\u0900-\u097F]+(?:\s+[\u0900-\u097F]+){0,2})"
 )
 # "<Shastri> Nagar", "<Sunshine> Apartments": a sub-district locality named by its suffix (used in address context)
@@ -679,7 +686,9 @@ class Detector:
             s0, e0, toks = _name_run(t, m.end(), max_tokens=3)
             strong = not re.match(r"(?i)(?:patient|pt|mareez|mariz|rogi|beneficiary|मरीज़|मरीज|रोगी)", m.group(0))
             if toks and (strong or all(gz.is_known_name_token(x) or _is_name(x) for x in toks)):
-                spans.append(Span(s0, e0, "NAME", role="patient", value=" ".join(toks), meta={"src": "role-noun"}))
+                # "Patient X" is the patient; "Neighbour X", "Contractor X" are other people
+                spans.append(Span(s0, e0, "NAME", role="other" if strong else "patient", value=" ".join(toks),
+                                  meta={"src": "role-noun"}))
         # communication verbs: "<Name> called/phoned/visited ...", "told/informed <Name>"
         from .namemodel import is_name
         for m in SUBJ_VERB.finditer(t):

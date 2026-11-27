@@ -269,6 +269,23 @@ _REL_INSIDE = re.compile(r"(?i)(?:^|\s|,)(?:[SDWHC]\s*/\s*O|son\s+of|daughter\s+
                          r"|\s(?:पुत्र|पुत्री|पत्नी|पति)\s+")
 
 
+def _render_name_keys(evs: list) -> set:
+    """Name keys that render as the patient's pseudonym. Once the patient's own name is known (typed column or
+    'Name:' label), an unlabelled mention (honorific, gazetteer, possessive) counts as the patient only when it
+    shares a token with that name: 'Pradhan Sukhdev Yadav ji' in Chhote Lal's note is someone else."""
+    strong = set()
+    for e in evs:
+        for n in e.names:
+            strong |= tok_keys(n)
+    keys = set(strong)
+    for e in evs:
+        for n in e.weak_names:
+            k = tok_keys(n)
+            if not strong or (k & strong):
+                keys |= k
+    return keys
+
+
 def _plain_value(s: str) -> bool:
     """A short vocabulary-like value (one to three words, no brackets or separators that could carry a note)."""
     return len(s) <= 40 and not re.search(r"[()\[\]:;,/]|\s[-–]\s", s) and len(s.split()) <= 3
@@ -972,13 +989,10 @@ class Pipeline:
             key = canon[0] + "#" + canon[1]
             self.cluster_psn[root] = pseudonym(key)
             self.cluster_shift[root] = shift_days(key)
-            nk = set()
             for u in us:
-                for n in u.ev.names + u.ev.weak_names:
-                    nk |= tok_keys(n)
                 for c in u.ev.uhids | u.ev.encs:
                     self.core_cluster.setdefault(c, root)
-            self.cluster_names[root] = nk
+            self.cluster_names[root] = _render_name_keys([u.ev for u in us])
         for u in self.units:
             root = assign.get(u.ev.rid)
             u.cluster = root
@@ -988,10 +1002,7 @@ class Pipeline:
                 u.name_keys = self.cluster_names[root]
             else:
                 u.shift = shift_days("unit#" + u.file + "#" + u.loc)
-                nk = set()
-                for n in u.ev.names + u.ev.weak_names:
-                    nk |= tok_keys(n)
-                u.name_keys = nk
+                u.name_keys = _render_name_keys([u.ev])
         # IDs whose owner is ambiguous (seen in several clusters) never map to a pseudonym
         owners: dict = {}
         for u in self.units:
