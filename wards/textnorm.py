@@ -62,9 +62,21 @@ def _fold_char(ch: str) -> str:
     return out
 
 
+class _FoldMap(dict):
+    """str.translate table filled lazily from _fold_char (same results, C-speed loop)."""
+    def __missing__(self, o):
+        r = self[o] = _fold_char(chr(o))
+        return r
+
+
+_FOLD_MAP = _FoldMap()
+
+
 def fold(text: str) -> str:
     """Same-length normalised copy: lower-case ASCII, digits ASCII, homoglyphs folded."""
-    return "".join(_fold_char(c) for c in text)
+    if text.isascii():
+        return text.lower()
+    return text.translate(_FOLD_MAP)
 
 
 def strip_zero_width(text: str) -> str:
