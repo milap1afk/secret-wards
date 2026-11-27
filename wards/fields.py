@@ -111,7 +111,10 @@ _ORG_CTX = {"facility", "organization", "organisation", "hospital", "lab", "labo
             "interpretation", "bodysite", "method", "specimen", "section", "sections", "relationship", "qualification",
             "system", "export", "_export_meta", "meta", "profile", "composition", "bundle", "ward", "vaccine"}
 _REL_CTX = {"guardian", "contact", "relative", "attendant", "kin", "nok", "father", "husband", "mother", "spouse",
-            "next_of_kin", "nextofkin", "emergency_contact", "parent", "relatedperson", "linkage"}
+            "next_of_kin", "nextofkin", "emergency_contact", "parent", "relatedperson", "linkage",
+            # CDA person containers that are never the treating clinician
+            "associatedperson", "associatedentity", "guardianperson", "relatedentity", "relatedsubject",
+            "personalrelationship"}
 _PATIENT_CTX = {"patient", "subject", "beneficiary", "member", "insured", "person", "patients", "pt", "rogi",
                 "rogi_vivaran", "rogivivaran", "mareez", "mariz", "marij", "labharthi", "rogee", "patient_details",
                 "patientdetails", "pt_details", "demographics"}

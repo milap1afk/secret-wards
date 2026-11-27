@@ -637,6 +637,13 @@ class Pipeline:
                 an_l = local(an)
                 if an_l in ("root", "xmlns", "codeSystem", "classCode", "moodCode", "typeCode", "use"):
                     continue
+                if an_l == "value" and (tag.lower().endswith("time") or tag in ("low", "high", "center")) and \
+                        re.match(r"(?:19|20)\d{6}(?!\d{0,1}[^\d+\-])", av or ""):
+                    # CDA TS "20260214103000+0530": shift the date, keep the time; birthTime is a DOB
+                    is_dob = tag == "birthTime" or (anc and anc[-1] == "birthTime")
+                    u.leaves.append(Leaf(sem=F.DOB if is_dob else F.DATE, value=av[:8], path=path + ("@" + an,), key=an_l,
+                                         extra={"el": el, "attr": an, "hl7_rest": av[8:]}))
+                    continue
                 if tag == "id" and an_l == "extension":
                     sem = F.AADHAAR if "aadhaar" in idroot or idroot.startswith("2.16.356.") and len(re.sub(r"\D", "", av)) == 12 else (
                         F.ABHA if "abha" in idroot or "healthid" in idroot else F.UHID)
@@ -1493,6 +1500,8 @@ class Pipeline:
         for lf in u.leaves:
             new = self._render_leaf(lf, u, sweep, {"district": u.district})
             new = "" if new is None else str(new)
+            if new and not new.startswith("[") and lf.extra.get("hl7_rest"):
+                new += lf.extra["hl7_rest"]
             el = lf.extra["el"]
             if "attr" in lf.extra:
                 el.set(lf.extra["attr"], new)
