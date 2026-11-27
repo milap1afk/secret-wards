@@ -25,6 +25,8 @@ CASES = [
     ("Ref 202602190045 sample", [], ["Ref", "sample"]),
     ("Stay 14-Mar-2026 to 20-Mar-2026.", ["14-Mar-2026", "20-Mar-2026", "GOV-ID"], ["Stay", " to "]),   # a range, not a car
     ("Inj Actrapid 12-10-8 U SC; Mixtard 14-0-10 units", [], ["12-10-8 U", "14-0-10 units"]),   # schedules, not dates
+    ("cc @kamal.verma; Name of test: Widal; Name of lab: Thyrocare; Name: NA", ["kamal.verma"],
+     ["Widal", "Thyrocare", "Name: NA"]),
     ("Born 1931. Widow, aged 9 days? no: grandson aged 9 days", ["1931"], ["aged 9 days"]),       # a 12-digit reference is an ID: removing it is right
     ("DM2 x 8 yrs, H/O TB 2 yrs back, fever for 8 days, HTN since 10 years, Tab Metformin 500 mg 1-0-1 x 5 days",
      [], ["x 8 yrs", "2 yrs back", "for 8 days", "since 10 years", "500 mg", "1-0-1", "x 5 days"]),

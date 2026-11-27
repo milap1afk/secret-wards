@@ -283,6 +283,23 @@ RE_YMD = re.compile(r"(?<![\d])(\d{4})[/.](\d{1,2})[/.](\d{1,2})(?![\d])")
 RE_HINDIDATE = re.compile(r"(?<![\d])(\d{1,2})\s+(जनवरी|फ़रवरी|फरवरी|मार्च|अप्रैल|अप्रेल|मई|जून|जुलाई|अगस्त|सितंबर|सितम्बर|अक्टूबर|अक्तूबर|नवंबर|नवम्बर|दिसंबर|दिसम्बर)\s+(\d{4})(?![\d])")
 RE_COMPACT = re.compile(r"(?<![\d])((?:19|20)\d{2})(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])(?![\d])")
 RE_TEXTDATE2 = re.compile(r"(?i)(?<![a-z\d])(" + _MON + r")\.?\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{4})(?![\d])")
+RE_HANDLE = re.compile(r"(?<![a-z0-9._%+\-])@[a-z][a-z0-9_]*[._][a-z0-9_.]*[a-z0-9](?![a-z0-9@])")
+# a "name" label whose value is a placeholder, or which names a thing rather than a person
+NAME_PLACEHOLDER = re.compile(r"(?i)(?:unknown|unidentified|un-known|n\.?a\.?|n/a|nil|none|not\s+known|not\s+available|"
+                              r"withheld|anonymous|unnamed)\b")
+NAME_OF_THING = re.compile(r"(?i)\bname\s+of\s+(?:the\s+)?(?:test|lab|laboratory|drug|medicine|hospital|clinic|centre|center|"
+                           r"facility|procedure|surgery|operation|disease|diagnosis|scheme|insurer|insurance|tpa|company|"
+                           r"employer|school|college|institution|vaccine|investigation|department|ward|unit|scan|device|"
+                           r"implant|kit|brand|manufacturer|pharmacy|ambulance)\s*[:\-–=]\s*$")
+
+
+def _not_a_person(text: str, s) -> bool:
+    if NAME_PLACEHOLDER.match(text, s.start) and re.match(r"(?i)\s*(?:[A-Z][a-z]+)?\s*(?:[,;.)\n]|$)",
+                                                          text[NAME_PLACEHOLDER.match(text, s.start).end():][:20]):
+        return True
+    return bool(NAME_OF_THING.search(text[max(0, s.start - 40):s.start]))
+
+
 DOSE_AFTER = re.compile(r"(?i)\s*(?:units?|u|iu|mg|mcg|ml|tabs?|caps?|drops?|puffs?|sachets?|tsp)\b")
 RE_AGE = re.compile(
     r"(?i)(?<![\d\-/.x])(?<!x )(\d{1,3})\s*(?:yrs?|years?|y)\.?(?=\s*/\s*(?:[mf]\b|male|female)|\s*,?\s*(?:male|female|m\b|f\b|old\b))"
@@ -455,6 +472,9 @@ class Detector:
         self._model_names(text, f, spans)
         self._soft(text, f, spans)
         self._dates_ages(text, f, spans)
+        for m in RE_HANDLE.finditer(f):            # "@sunita.verma": a person's handle (not an e-mail's domain)
+            spans.append(Span(m.start(), m.end(), "EMAIL", value=m.group(0)))
+        spans = [s for s in spans if not (s.kind == "NAME" and s.meta.get("src") == "label" and _not_a_person(text, s))]
         return resolve(spans)
 
     # -------------------------------------------------------------- layers
