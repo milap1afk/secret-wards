@@ -211,7 +211,20 @@ NAME_AGE_BRACKET = re.compile(r"\(\s*((?:[A-Z][a-z'\-]+\.?\s+){0,3}[A-Z][a-z'\-]
 REL_BRACKET_NAME = re.compile(r"(?i:\b(?:spouse|wife|husband|son|daughter|father|mother|brother|sister|guardian|nephew|niece|uncle|aunt|"
                               r"son-in-law|daughter-in-law|bhai|behen|beta|beti|pati|patni))\s*\(\s*((?:[A-Z][a-z'\-]+\s+){0,2}[A-Z][a-z'\-]+)\s*\)")
 AGE_SEX_BRACKET = re.compile(r"\(\s*(?:[MF]\s*/\s*\d{1,3}|\d{1,3}\s*(?:Y|Yrs?|years?)?\s*/\s*[MF])\s*\)")
-SUBJ_VERB = re.compile(r"(?:^|(?<=[.;!\n]\s)|(?<=^\s))([A-Z][a-z]{2,})\s+(?:called|phoned|rang|came|visited|paid|signed|informed|counselled|enquired|requested|refused|consented|agreed|left|brought)\b", re.M)
+SUBJ_VERB = re.compile(r"(?:^|(?<=[.;!\n]\s)|(?<=^\s))([A-Z][a-z]{2,})\s+(?:called|phoned|rang|came|visited|paid|signed|informed|counselled|enquired|requested|refused|consented|agreed|left|brought|"
+                       r"was\s+(?:admitted|brought|seen|referred|discharged|diagnosed|operated|shifted|intubated)|is\s+(?:admitted|a\s+\d)|"
+                       r"presented|presents|complained|complains|developed|underwent|expired|died|collapsed|fainted)\b", re.M)
+EN_ROLE_WORDS = {"mother", "father", "son", "daughter", "wife", "husband", "brother", "sister", "patient", "baby", "child",
+                 "infant", "neonate", "relative", "relatives", "attendant", "doctor", "nurse", "family", "uncle", "aunt",
+                 "grandmother", "grandfather", "grandson", "granddaughter", "nephew", "niece", "cousin", "guardian",
+                 "spouse", "friend", "neighbour", "neighbor", "she", "he", "they", "mom", "dad", "papa", "mummy"}
+# "Selvi's sugar", "Rahim's wife": an English possessive before a clinical or family noun
+EN_POSSESSIVE = re.compile(r"\b([A-Z][a-z]{2,})['’]s\s+(?:sugar|bp|blood|report|reports|fever|pain|condition|wound|x-?ray|scan|"
+                           r"tests?|surgery|operation|treatment|medicines?|dose|pulse|temperature|hb|haemoglobin|weight|"
+                           r"husband|wife|son|daughter|mother|father|brother|sister|family|attendant|relatives?)\b")
+# "Jagjit (alias Jaggi)", "Pinki urf Priyanka", "Abdul Rahim @ Babloo"
+ALIAS_RE = re.compile(r"(?i:\balias\b|\burf\b|\ba\.?k\.?a\.?(?=\s)|(?<=\s)@(?=\s))\s*")
+DEITY_RE = re.compile(r"\b(?:Lord|Bhagwan|Bhagwaan|Goddess)\s+[A-Z][a-z]+")
 OBJ_VERB = re.compile(r"(?i:\b(?:told|informed|called|phoned|counselled|counseled|asked|briefed|advised|explained\s+to))\s+(?=[A-Z])")
 GENERIC_ID_LABEL = re.compile(r"(?i)(?<![a-z])((?:[a-z][a-z.]{0,12}\s){0,2}[a-z][a-z.]{0,12})(?:\s+|(?<=\.)|(?=#))(?:no\.?|number|num|id|#|code|card|policy|ref\.?|reference|account|a/c)(?![a-z])\s*[:#\-–=]?\s*")
 NON_ID_LABEL = re.compile(r"(?i)(?<![a-z])(opd|visit|bill|invoice|receipt|sample|lab|test|batch|lot|package|pkg|loinc|icd|snomed|trip|ticket|order|bed|ward|room|unit|page|ref\.?\s*range|phone|mobile|mob|contact|cell|tel|pin|zip|postal|house|h|gali|plot|flat|serial|sr|s|sl)$")
@@ -255,7 +268,7 @@ EPONYM_RE = re.compile(r"(?i)\b(?-i:(?:[A-Z][a-z]+[\s\-]+){0,2})[A-Z][a-z]+(?:'s
 DRUG_DOSE = re.compile(r"\b[A-Z][A-Za-z]+(?:[\-\s][A-Z0-9][A-Za-z0-9]*)?\s+\d+(?:\.\d+)?(?:\s*/\s*\d+(?:\.\d+)?)?\s*"
                        r"(?:mg|mcg|µg|ug|gm|g|ml|mL|IU|iu|units?|U)\b(?!\s*/\s*(?:dL|L|kg|min|hr)\b)")
 # the word for "name" in other Indian scripts, then the value in that script (up to 4 words)
-_OS = {"\u0980-\u09FF": "নাম", "\u0A00-\u0A7F": "ਨਾਮ|ਨਾਂ", "\u0A80-\u0AFF": "નામ", "\u0B00-\u0B7F": "ନାମ",
+_OS = {"\u0600-\u06FF": "نام|مریض|مریضہ|ولد|زوجہ|بنت", "\u0980-\u09FF": "নাম", "\u0A00-\u0A7F": "ਨਾਮ|ਨਾਂ", "\u0A80-\u0AFF": "નામ", "\u0B00-\u0B7F": "ନାମ",
        "\u0B80-\u0BFF": "பெயர்", "\u0C00-\u0C7F": "పేరు", "\u0C80-\u0CFF": "ಹೆಸರು", "\u0D00-\u0D7F": "പേര്"}
 OTHER_SCRIPT_NAME = re.compile("|".join(
     rf"(?:{w})[{r}]*\s*[:\-–]\s*((?:[{r}]+[ \t]+){{0,3}}[{r}]+)" for r, w in _OS.items()))
@@ -526,6 +539,8 @@ class Detector:
             spans.append(Span(m.start(), m.end(), "PROTECT", value="ward"))
         for m in EPONYM_RE.finditer(t):
             spans.append(Span(m.start(), m.end(), "PROTECT", value="eponym"))
+        for m in DEITY_RE.finditer(t):
+            spans.append(Span(m.start(), m.end(), "PROTECT", value="eponym"))
         for m in DRUG_DOSE.finditer(t):
             w = m.group(0).split()[0]
             if not gz.is_known_name_token(w) or not re.search(r"(?i)\b(?:mr|mrs|ms|shri|smt|w/o|s/o|d/o)\b", t[max(0, m.start() - 12):m.start()]):
@@ -706,7 +721,8 @@ class Detector:
         for m in ROLE_NOUN.finditer(t):
             s0, e0, toks = _name_run(t, m.end(), max_tokens=3)
             strong = not re.match(r"(?i)(?:patient|pt|mareez|mariz|rogi|beneficiary|मरीज़|मरीज|रोगी)", m.group(0))
-            if toks and (strong or all(gz.is_known_name_token(x) or _is_name(x) for x in toks)):
+            if toks and (strong or (all(len(x) == 1 or gz.is_known_name_token(x) or _is_name(x) for x in toks)
+                                    and any(len(x) > 1 for x in toks))):
                 # "Patient X" is the patient; "Neighbour X", "Contractor X" are other people
                 spans.append(Span(s0, e0, "NAME", role="other" if strong else "patient", value=" ".join(toks),
                                   meta={"src": "role-noun"}))
@@ -714,8 +730,18 @@ class Detector:
         from .namemodel import is_name
         for m in SUBJ_VERB.finditer(t):
             w = m.group(1)
+            if w.lower() in EN_ROLE_WORDS:
+                continue                        # "Mother complained", "Baby developed": a role, not a name
             if is_name_token(w) and (gz.is_known_name_token(w) or is_name(w)):
                 spans.append(Span(m.start(1), m.end(1), "NAME", role="other", value=w, meta={"src": "verb"}))
+        for m in EN_POSSESSIVE.finditer(t):
+            w = m.group(1)
+            if w.lower() not in EN_ROLE_WORDS and is_name_token(w) and (gz.is_known_name_token(w) or is_name(w)):
+                spans.append(Span(m.start(1), m.end(1), "NAME", role="", value=w, meta={"src": "possessive"}))
+        for m in ALIAS_RE.finditer(t):
+            s0, e0, toks = _name_run(t, m.end(), allow_lower=False, max_tokens=3)
+            if toks and s0 == m.end():
+                spans.append(Span(s0, e0, "NAME", role="", value=" ".join(toks), meta={"src": "label"}))
         for m in OBJ_VERB.finditer(t):
             s0, e0, toks = _name_run(t, m.end(), max_tokens=3)
             if toks and all(gz.is_known_name_token(x) or is_name(x) for x in toks):
