@@ -669,6 +669,12 @@ class Pipeline:
             else:
                 return F.TEXT
         sem = F.classify_json(str(key), [a for a in anc], rt or "")
+        if str(key) == "value" and "telecom" in anc:
+            system = str(_sibling(data, path, "system") or "").lower()
+            if system == "email":
+                return F.EMAIL                  # ContactPoint.system decides what the value is
+            if system in ("url", "other"):
+                return F.TEXT
         if str(key).startswith("value") and "extension" in anc:
             # FHIR extension: what the value is comes from its url ("…/StructureDefinition/fathers-name")
             url = str(_sibling(data, path, "url") or "")
@@ -1292,7 +1298,8 @@ class Pipeline:
             return surrogate_id("ENC", id_core(s) or s)
         if sem == F.PHONE:
             if not re.search(r"\d{3}", fold(s)):
-                return s
+                # not a number (an e-mail or a handle in a contact slot): never kept as is unchecked
+                return self._render_free(s, u, sweep)
             self._count("PHONE")
             return "[PHONE]"
         if sem == F.AADHAAR:

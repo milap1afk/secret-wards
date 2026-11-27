@@ -13,7 +13,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 PLANTED = ["Kalpana", "9876512345", "सुरेश यादव", "9812300022", "Gurpreet", "Lalita", "9812312312", "सुनीता", "9876500011",
            "Hemant Joshi", "9898123450", "Ishwari", "Tenzin Norbu", "9612300456", "Mridula", "Wangkhem",
-           "Bhagwati", "Kunwar Pal"]
+           "Bhagwati", "Kunwar Pal", "mridula.w"]
 KEEP = ["Hb 10.2 g/dL", "Tab Metformin 500 mg 1-0-1", "BP 130/84", "Typhoid fever (A01.0)"]
 
 
@@ -39,7 +39,8 @@ def build(d: Path):
                       "name": [{"text": "Mridula Wangkhem"}],
                       "extension": [{"url": "https://x.example/fhir/StructureDefinition/fathers-name",
                                      "valueString": "Tenzin Norbu"}],
-                      "telecom": [{"system": "phone", "value": "9612300456"}]}}]}), encoding="utf-8")
+                      "telecom": [{"system": "phone", "value": "9612300456"},
+                                    {"system": "email", "value": "mridula.w@example.in"}]}}]}), encoding="utf-8")
 
 
 def main():

@@ -249,6 +249,7 @@ CASES = [
  ("Patient Name : SUNIL KUMAR S", ["SUNIL KUMAR"], []),
  ("VID: 9182 7364 5546 1029", ["9182 7364 5546 1029"], []),
  ("mail: ramesh.k[at]gmail[dot]com", ["ramesh.k[at]gmail[dot]com"], []),
+ ("Address: Gali 2, Mohalla Ansari, Bareilly", ["Mohalla Ansari"], ["Bareilly"]),
  # round 10: date ranges are not vehicle numbers, birth years are DOBs, infant ages in days/months stay
  ("Born 1931. Widow.", ["1931"], []),
  ("Patient born in 1940 at Kanpur", ["1940"], []),

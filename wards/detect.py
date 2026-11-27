@@ -847,7 +847,9 @@ class Detector:
                 tail = t[m.end():m.end() + 6]
                 if not addr_ctx or re.match(r"\s*[\(/]", tail):
                     continue
-            spans.append(Span(m.start(), m.end(), "LOCALITY", value=s.strip()))
+            # "Mohalla Saini": a marker-led locality outranks a surname found inside it
+            prio = PRIORITY["NAME"] + 1 if re.match(r"(?i)mohalla|mohallah|muhalla|mohala|locality|colony|मोहल्ला|मुहल्ला", s) else None
+            spans.append(Span(m.start(), m.end(), "LOCALITY", value=s.strip(), meta={"prio": prio} if prio else {}))
         if addr_ctx:
             for m in LOCALITY_SUFFIX_RE.finditer(t):
                 words = m.group(0).split()
